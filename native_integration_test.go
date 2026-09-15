@@ -148,6 +148,15 @@ end`))
 	if err := scanErr; err != nil || seen != 1 {
 		t.Fatalf("scan seen=%d err=%v", seen, err)
 	}
+	scan.Projection = projection
+	scanPage, err = dataset.Scan(ctx, scan)
+	if err != nil || len(scanPage.Documents) != 1 {
+		t.Fatalf("projected scan: %+v %v", scanPage, err)
+	}
+	rawScan := bson.Raw(scanPage.Documents[0].Payload())
+	if rawScan.Lookup("count").AsInt64() != 2 || rawScan.Lookup("updated_at").Type != 0 {
+		t.Fatalf("Scan projection was ignored: %s", rawScan)
+	}
 	invalid := bson.D{{Key: "count", Value: collection}, {Key: "unknownOption", Value: true}}
 	command, err = sink.NewBSONCommand(opts.Store, opts.Namespace, invalid)
 	if err != nil {

@@ -996,6 +996,11 @@ func TestClientOptionsValidation(t *testing.T) {
 		{ReadRetry: sink.RetryPolicy{InitialBackoff: time.Second, MaxBackoff: time.Millisecond}},
 		{ReadRetry: sink.RetryPolicy{Multiplier: 0.5}},
 		{ReadRetry: sink.RetryPolicy{Jitter: 1.1}},
+		{ScanRetry: sink.RetryPolicy{MaxAttempts: -1}},
+		{ScanRetry: sink.RetryPolicy{InitialBackoff: time.Second, MaxBackoff: time.Millisecond}},
+		{ScanRetry: sink.RetryPolicy{Multiplier: 0.5}},
+		{ScanRetry: sink.RetryPolicy{Jitter: 1.1}},
+		{ScanTimeout: -1},
 		{MaxReceiveMessageBytes: -1},
 		{MaxSendMessageBytes: -1},
 	}

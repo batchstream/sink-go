@@ -60,13 +60,13 @@ func TestDatasetNativeMethodsBindScopeAndRetainControls(t *testing.T) {
 			}
 			countRequest := <-server.counts
 			assertDatasetNativeScope(t, countRequest.Command, encoding)
-			scan := sink.ScanRequest{BatchSize: 23, Cursor: []byte("checkpoint")}
+			scan := sink.ScanRequest{BatchSize: 23, Cursor: []byte("checkpoint"), Projection: projection}
 			if page, err := dataset.Scan(t.Context(), scan); err != nil || len(page.Documents) != 1 {
 				t.Fatalf("scan=%+v err=%v", page, err)
 			}
 			scanRequest := <-server.scans
 			assertDatasetNativeScope(t, scanRequest.Command, encoding)
-			if scanRequest.BatchSize != 23 || string(scanRequest.Cursor) != "checkpoint" {
+			if scanRequest.BatchSize != 23 || string(scanRequest.Cursor) != "checkpoint" || scanRequest.GetProjection().GetFields()[0] != "name" {
 				t.Fatal("batch size lost")
 			}
 			command := sink.Command{Method: "PUT", Path: "/_mapping", Query: "a=1&a=2", Payload: []byte(`{"properties":{}}`), Headers: http.Header{"Accept": {"application/json"}}}

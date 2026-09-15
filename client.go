@@ -29,11 +29,12 @@ const (
 	defaultRetryJitter        = 0.2
 	defaultMaxMessageBytes    = 64 << 20
 	defaultDNSRefreshInterval = 30 * time.Second
+	defaultScanTimeout        = 30 * time.Second
 )
 
-// RetryPolicy controls retries for transport-level Unavailable errors and
-// retryable per-operation failures from Read. Mutating RPCs are never retried
-// automatically.
+// RetryPolicy controls backoff and attempt limits. Read retries Unavailable and
+// retryable per-operation failures; Scan retries only explicit temporary
+// admission rejections. Mutating RPCs are never retried automatically.
 type RetryPolicy struct {
 	MaxAttempts    int
 	InitialBackoff time.Duration
@@ -44,8 +45,13 @@ type RetryPolicy struct {
 
 // ClientOptions controls request limits and safe read retries.
 type ClientOptions struct {
-	MaxOperations          int
-	ReadRetry              RetryPolicy
+	MaxOperations int
+	ReadRetry     RetryPolicy
+	ScanRetry     RetryPolicy
+
+	// ScanTimeout bounds a whole page, including admission retries and backoff.
+	// Zero defaults to 30 seconds. A shorter context deadline wins.
+	ScanTimeout            time.Duration
 	MaxReceiveMessageBytes int
 	MaxSendMessageBytes    int
 }
@@ -68,6 +74,8 @@ type DialOptions struct {
 type clientConfig struct {
 	maxOperations     int
 	readRetry         RetryPolicy
+	scanRetry         RetryPolicy
+	scanTimeout       time.Duration
 	sinkCallOptions   []grpc.CallOption
 	healthCallOptions []grpc.CallOption
 }
@@ -143,7 +151,7 @@ func New(connection grpc.ClientConnInterface, opts ClientOptions) (*Client, erro
 
 func newClientConfig(opts ClientOptions) (clientConfig, error) {
 	var config clientConfig
-	if opts.MaxOperations < 0 || opts.MaxReceiveMessageBytes < 0 || opts.MaxSendMessageBytes < 0 {
+	if opts.MaxOperations < 0 || opts.MaxReceiveMessageBytes < 0 || opts.MaxSendMessageBytes < 0 || opts.ScanTimeout < 0 {
 		return config, errors.New("create Sink client: limits cannot be negative")
 	}
 	maxOperations := opts.MaxOperations
@@ -152,7 +160,15 @@ func newClientConfig(opts ClientOptions) (clientConfig, error) {
 	}
 	retry, err := normalizeRetryPolicy(opts.ReadRetry)
 	if err != nil {
-		return config, err
+		return config, fmt.Errorf("create Sink client: read retry: %w", err)
+	}
+	scanRetry, err := normalizeRetryPolicy(opts.ScanRetry)
+	if err != nil {
+		return config, fmt.Errorf("create Sink client: scan retry: %w", err)
+	}
+	scanTimeout := opts.ScanTimeout
+	if scanTimeout == 0 {
+		scanTimeout = defaultScanTimeout
 	}
 	maxReceiveBytes := opts.MaxReceiveMessageBytes
 	if maxReceiveBytes == 0 {
@@ -172,6 +188,8 @@ func newClientConfig(opts ClientOptions) (clientConfig, error) {
 	config = clientConfig{
 		maxOperations:     maxOperations,
 		readRetry:         retry,
+		scanRetry:         scanRetry,
+		scanTimeout:       scanTimeout,
 		sinkCallOptions:   sinkCallOptions,
 		healthCallOptions: healthCallOptions,
 	}
@@ -181,16 +199,16 @@ func newClientConfig(opts ClientOptions) (clientConfig, error) {
 func normalizeRetryPolicy(policy RetryPolicy) (RetryPolicy, error) {
 	var empty RetryPolicy
 	if policy.MaxAttempts < 0 {
-		return empty, errors.New("create Sink client: read retry max attempts cannot be negative")
+		return empty, errors.New("max attempts cannot be negative")
 	}
 	if policy.InitialBackoff < 0 || policy.MaxBackoff < 0 {
-		return empty, errors.New("create Sink client: read retry backoff cannot be negative")
+		return empty, errors.New("backoff cannot be negative")
 	}
 	if policy.Multiplier < 0 {
-		return empty, errors.New("create Sink client: read retry multiplier cannot be negative")
+		return empty, errors.New("multiplier cannot be negative")
 	}
 	if policy.Jitter < 0 || policy.Jitter > 1 {
-		return empty, errors.New("create Sink client: read retry jitter must be between 0 and 1")
+		return empty, errors.New("jitter must be between 0 and 1")
 	}
 	if policy.MaxAttempts == 0 {
 		policy.MaxAttempts = defaultReadAttempts
@@ -208,10 +226,10 @@ func normalizeRetryPolicy(policy RetryPolicy) (RetryPolicy, error) {
 		policy.Jitter = defaultRetryJitter
 	}
 	if policy.MaxBackoff < policy.InitialBackoff {
-		return empty, errors.New("create Sink client: read retry max backoff is less than initial backoff")
+		return empty, errors.New("max backoff is less than initial backoff")
 	}
 	if policy.Multiplier < 1 {
-		return empty, errors.New("create Sink client: read retry multiplier must be at least 1")
+		return empty, errors.New("multiplier must be at least 1")
 	}
 	return policy, nil
 }

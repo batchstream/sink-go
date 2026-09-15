@@ -2346,7 +2346,7 @@ func (x *CountResponse) GetEstimated() bool {
 	return false
 }
 
-// Scan returns one live page. Supply the same Command on every call and pass
+// Scan returns one live page. Supply the same Command and Projection and pass
 // next_cursor back as cursor after processing a page. Cursors carry the seek
 // position across server restarts and do not expire; no database session
 // survives a request. Task deadlines and checkpoint retention belong to callers.
@@ -2357,8 +2357,13 @@ type ScanRequest struct {
 	// Zero selects 100; maximum 1000. The byte limit may produce a smaller page.
 	BatchSize uint32 `protobuf:"varint,2,opt,name=batch_size,json=batchSize,proto3" json:"batch_size,omitempty"`
 	// Empty starts a new scan. Treat this continuation marker as opaque; it is
-	// bound to Command and is not an authorization credential.
-	Cursor        []byte `protobuf:"bytes,3,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	// bound to Command and Projection and is not an authorization credential.
+	Cursor []byte `protobuf:"bytes,3,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	// Absent preserves native projection. Present replaces find projection or
+	// HTTP _source selection. Empty fields selects all document fields. MongoDB
+	// retains _id internally for continuation even when excluded from results;
+	// HTTP hit metadata and sort values are unchanged.
+	Projection    *Projection `protobuf:"bytes,4,opt,name=projection,proto3" json:"projection,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2410,6 +2415,13 @@ func (x *ScanRequest) GetBatchSize() uint32 {
 func (x *ScanRequest) GetCursor() []byte {
 	if x != nil {
 		return x.Cursor
+	}
+	return nil
+}
+
+func (x *ScanRequest) GetProjection() *Projection {
+	if x != nil {
+		return x.Projection
 	}
 	return nil
 }
@@ -2605,12 +2617,15 @@ const file_sink_sink_proto_rawDesc = "" +
 	"\acommand\x18\x01 \x01(\v2\x10.sink.v1.CommandR\acommand\"C\n" +
 	"\rCountResponse\x12\x14\n" +
 	"\x05count\x18\x01 \x01(\x04R\x05count\x12\x1c\n" +
-	"\testimated\x18\x02 \x01(\bR\testimated\"p\n" +
+	"\testimated\x18\x02 \x01(\bR\testimated\"\xa5\x01\n" +
 	"\vScanRequest\x12*\n" +
 	"\acommand\x18\x01 \x01(\v2\x10.sink.v1.CommandR\acommand\x12\x1d\n" +
 	"\n" +
 	"batch_size\x18\x02 \x01(\rR\tbatchSize\x12\x16\n" +
-	"\x06cursor\x18\x03 \x01(\fR\x06cursor\"`\n" +
+	"\x06cursor\x18\x03 \x01(\fR\x06cursor\x123\n" +
+	"\n" +
+	"projection\x18\x04 \x01(\v2\x13.sink.v1.ProjectionR\n" +
+	"projection\"`\n" +
 	"\fScanResponse\x12/\n" +
 	"\tdocuments\x18\x01 \x03(\v2\x11.sink.v1.DocumentR\tdocuments\x12\x1f\n" +
 	"\vnext_cursor\x18\x02 \x01(\fR\n" +
@@ -2763,26 +2778,27 @@ var file_sink_sink_proto_depIdxs = []int32{
 	10, // 38: sink.v1.QueryResponse.documents:type_name -> sink.v1.Document
 	28, // 39: sink.v1.CountRequest.command:type_name -> sink.v1.Command
 	28, // 40: sink.v1.ScanRequest.command:type_name -> sink.v1.Command
-	10, // 41: sink.v1.ScanResponse.documents:type_name -> sink.v1.Document
-	12, // 42: sink.v1.Sink.Read:input_type -> sink.v1.ReadRequest
-	16, // 43: sink.v1.Sink.Write:input_type -> sink.v1.WriteRequest
-	23, // 44: sink.v1.Sink.Delete:input_type -> sink.v1.DeleteRequest
-	30, // 45: sink.v1.Sink.Execute:input_type -> sink.v1.ExecuteRequest
-	32, // 46: sink.v1.Sink.Query:input_type -> sink.v1.QueryRequest
-	36, // 47: sink.v1.Sink.Count:input_type -> sink.v1.CountRequest
-	38, // 48: sink.v1.Sink.Scan:input_type -> sink.v1.ScanRequest
-	14, // 49: sink.v1.Sink.Read:output_type -> sink.v1.ReadResponse
-	21, // 50: sink.v1.Sink.Write:output_type -> sink.v1.WriteResponse
-	25, // 51: sink.v1.Sink.Delete:output_type -> sink.v1.DeleteResponse
-	31, // 52: sink.v1.Sink.Execute:output_type -> sink.v1.ExecuteResponse
-	35, // 53: sink.v1.Sink.Query:output_type -> sink.v1.QueryResponse
-	37, // 54: sink.v1.Sink.Count:output_type -> sink.v1.CountResponse
-	39, // 55: sink.v1.Sink.Scan:output_type -> sink.v1.ScanResponse
-	49, // [49:56] is the sub-list for method output_type
-	42, // [42:49] is the sub-list for method input_type
-	42, // [42:42] is the sub-list for extension type_name
-	42, // [42:42] is the sub-list for extension extendee
-	0,  // [0:42] is the sub-list for field type_name
+	34, // 41: sink.v1.ScanRequest.projection:type_name -> sink.v1.Projection
+	10, // 42: sink.v1.ScanResponse.documents:type_name -> sink.v1.Document
+	12, // 43: sink.v1.Sink.Read:input_type -> sink.v1.ReadRequest
+	16, // 44: sink.v1.Sink.Write:input_type -> sink.v1.WriteRequest
+	23, // 45: sink.v1.Sink.Delete:input_type -> sink.v1.DeleteRequest
+	30, // 46: sink.v1.Sink.Execute:input_type -> sink.v1.ExecuteRequest
+	32, // 47: sink.v1.Sink.Query:input_type -> sink.v1.QueryRequest
+	36, // 48: sink.v1.Sink.Count:input_type -> sink.v1.CountRequest
+	38, // 49: sink.v1.Sink.Scan:input_type -> sink.v1.ScanRequest
+	14, // 50: sink.v1.Sink.Read:output_type -> sink.v1.ReadResponse
+	21, // 51: sink.v1.Sink.Write:output_type -> sink.v1.WriteResponse
+	25, // 52: sink.v1.Sink.Delete:output_type -> sink.v1.DeleteResponse
+	31, // 53: sink.v1.Sink.Execute:output_type -> sink.v1.ExecuteResponse
+	35, // 54: sink.v1.Sink.Query:output_type -> sink.v1.QueryResponse
+	37, // 55: sink.v1.Sink.Count:output_type -> sink.v1.CountResponse
+	39, // 56: sink.v1.Sink.Scan:output_type -> sink.v1.ScanResponse
+	50, // [50:57] is the sub-list for method output_type
+	43, // [43:50] is the sub-list for method input_type
+	43, // [43:43] is the sub-list for extension type_name
+	43, // [43:43] is the sub-list for extension extendee
+	0,  // [0:43] is the sub-list for field type_name
 }
 
 func init() { file_sink_sink_proto_init() }

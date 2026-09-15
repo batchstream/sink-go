@@ -371,7 +371,7 @@ database and collection; JSON datasets bind the index (the logical Namespace is
 unused by HTTP search). Empty Query/Count commands select all records in the
 Dataset. MongoDB Scan also accepts an empty Command; JSON Scan needs a body with
 an explicit stable sort. Conflicting stores, namespaces or BSON collection targets fail.
-The Dataset wrappers retain native error, no-retry and cursor semantics.
+The Dataset wrappers retain native error, retry and cursor semantics.
 
 ```go
 opts := sink.DatasetOptions{
@@ -434,7 +434,8 @@ command := sink.Command{
  Path: "/products/_search",
  Payload: []byte(`{"query":{"match_all":{}},"sort":[{"uid.keyword":"asc"}]}`),
 }
-request := sink.ScanRequest{Command: command, BatchSize: 100}
+projection := &sink.Projection{Fields: []string{"name", "price"}}
+request := sink.ScanRequest{Command: command, BatchSize: 100, Projection: projection}
 for {
  page, err := client.Scan(ctx, request)
  if err != nil {
@@ -459,6 +460,13 @@ for {
 }
 ```
 
+`ScanRequest.Projection` uses the same `Fields` and `Exclude` controls as Query.
+Nil preserves native projection; a non-nil empty projection selects all fields.
+Projection is executed by the backend, reducing document transfer and payload
+memory. Search paths are relative to `_source`, and hit metadata is preserved.
+This field requires a server with Scan projection support; upgrade the server
+before clients that rely on it. Older servers ignore the new protobuf field.
+
 MongoDB Scan supports find queries in `_id` ascending order by default, or an
 explicit `_id` descending sort, with simple collation. Projections can exclude
 `_id`; Sink still uses the original ID in the opaque cursor. Other sorts,
@@ -471,8 +479,9 @@ immutable keyword field. `_id`, `_doc`, `_shard_doc`, `_score`, null sort values
 scripted sorts and URL sort are unsupported. Every document is a complete JSON
 hit, including its sort values. Scan uses search_after without scroll or PIT.
 
-Resend the same Command, including headers and native payload bytes, with
-`Cursor` set to the previous `NextCursor`. Batch size may change. Cursors are
+Resend the same Command and Projection, including headers and native payload
+bytes, with `Cursor` set to the previous `NextCursor`. Batch size may change. Changing
+Projection during continuation returns `INVALID_ARGUMENT`. Cursors are
 opaque continuation markers limited to 64 KiB and bound to the query; they are
 not credentials. They do not expire and survive Sink server restarts. There is
 no keep-alive, explicit close operation or database cursor retained between
@@ -482,7 +491,10 @@ limits; task deadlines and checkpoint retention belong to the application.
 Only an empty NextCursor marks the end, even if a byte-limited page is short.
 Scan reads live data: inserts before the checkpoint may be missed, later inserts
 may appear, and updates/deletes can change results. Retries from the same cursor
-can observe newer data. Neither Execute nor Scan retries automatically. A failed
+can observe newer data. Execute never retries automatically. Scan retries only
+temporary admission rejections explicitly marked by Sink, using the identical
+command and cursor. Unmarked `ResourceExhausted` (including older servers),
+backend errors, transport failures and invalid pages are not retried. A failed
 Scan returns no page; reuse the last saved cursor and process idempotently.
 Persist task completion separately so a completed task does not restart from an
 empty cursor. A dataset recreation or remapping requires an explicit new scan.
@@ -572,6 +584,16 @@ failures with bounded exponential backoff and jitter. Only failed operations are
 resubmitted after a partial batch response. The default is three attempts,
 starting at 100 ms and capped at one second; `ClientOptions.ReadRetry` can tune
 or disable retries by setting `MaxAttempts` to one.
+
+Scan has an independent `ClientOptions.ScanRetry` policy with the same default
+attempts, backoff and 20% jitter. It retries only `ResourceExhausted` statuses
+carrying `google.rpc.ErrorInfo` with `domain="sink"` and
+`reason="SCAN_ADMISSION_REJECTED"`, which guarantee rejection before backend
+execution. Set `ScanRetry.MaxAttempts` to one to disable retries.
+`ClientOptions.ScanTimeout` defaults to 30 seconds and bounds the whole page,
+including all attempts and backoff. A shorter caller deadline wins; cancellation
+interrupts backoff. Save the next cursor only after successfully processing the
+returned page; automatic admission retries do not replay successful pages.
 
 Writes and deletes are never retried automatically. A transport error can arrive
 after Sink has already applied a synchronous mutation or durably accepted an

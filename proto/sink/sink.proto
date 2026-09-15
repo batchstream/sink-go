@@ -392,7 +392,7 @@ message CountResponse {
   bool estimated = 2;
 }
 
-// Scan returns one live page. Supply the same Command on every call and pass
+// Scan returns one live page. Supply the same Command and Projection and pass
 // next_cursor back as cursor after processing a page. Cursors carry the seek
 // position across server restarts and do not expire; no database session
 // survives a request. Task deadlines and checkpoint retention belong to callers.
@@ -404,8 +404,14 @@ message ScanRequest {
   uint32 batch_size = 2;
 
   // Empty starts a new scan. Treat this continuation marker as opaque; it is
-  // bound to Command and is not an authorization credential.
+  // bound to Command and Projection and is not an authorization credential.
   bytes cursor = 3;
+
+  // Absent preserves native projection. Present replaces find projection or
+  // HTTP _source selection. Empty fields selects all document fields. MongoDB
+  // retains _id internally for continuation even when excluded from results;
+  // HTTP hit metadata and sort values are unchanged.
+  Projection projection = 4;
 }
 
 // Documents retain native encodings: BSON documents or complete JSON hits.
