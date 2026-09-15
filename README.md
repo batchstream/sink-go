@@ -434,7 +434,8 @@ command := sink.Command{
  Path: "/products/_search",
  Payload: []byte(`{"query":{"match_all":{}},"sort":[{"uid.keyword":"asc"}]}`),
 }
-request := sink.ScanRequest{Command: command, BatchSize: 100}
+projection := &sink.Projection{Fields: []string{"name", "price"}}
+request := sink.ScanRequest{Command: command, BatchSize: 100, Projection: projection}
 for {
  page, err := client.Scan(ctx, request)
  if err != nil {
@@ -459,6 +460,13 @@ for {
 }
 ```
 
+`ScanRequest.Projection` uses the same `Fields` and `Exclude` controls as Query.
+Nil preserves native projection; a non-nil empty projection selects all fields.
+Projection is executed by the backend, reducing document transfer and payload
+memory. Search paths are relative to `_source`, and hit metadata is preserved.
+This field requires a server with Scan projection support; upgrade the server
+before clients that rely on it. Older servers ignore the new protobuf field.
+
 MongoDB Scan supports find queries in `_id` ascending order by default, or an
 explicit `_id` descending sort, with simple collation. Projections can exclude
 `_id`; Sink still uses the original ID in the opaque cursor. Other sorts,
@@ -471,8 +479,9 @@ immutable keyword field. `_id`, `_doc`, `_shard_doc`, `_score`, null sort values
 scripted sorts and URL sort are unsupported. Every document is a complete JSON
 hit, including its sort values. Scan uses search_after without scroll or PIT.
 
-Resend the same Command, including headers and native payload bytes, with
-`Cursor` set to the previous `NextCursor`. Batch size may change. Cursors are
+Resend the same Command and Projection, including headers and native payload
+bytes, with `Cursor` set to the previous `NextCursor`. Batch size may change. Changing
+Projection during continuation returns `INVALID_ARGUMENT`. Cursors are
 opaque continuation markers limited to 64 KiB and bound to the query; they are
 not credentials. They do not expire and survive Sink server restarts. There is
 no keep-alive, explicit close operation or database cursor retained between

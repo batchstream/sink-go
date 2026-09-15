@@ -29,7 +29,8 @@ func TestScanRetriesAdmissionWithIdenticalPage(t *testing.T) {
 	policy := sink.RetryPolicy{InitialBackoff: time.Millisecond, MaxBackoff: time.Millisecond}
 	opts := sink.ClientOptions{ScanRetry: policy}
 	client := startTestClient(t, server, opts)
-	request := sink.ScanRequest{Command: sdkNativeRequest().Command, BatchSize: 2, Cursor: []byte("checkpoint")}
+	projection := &sink.Projection{Fields: []string{"name"}}
+	request := sink.ScanRequest{Command: sdkNativeRequest().Command, BatchSize: 2, Cursor: []byte("checkpoint"), Projection: projection}
 	page, err := client.Scan(t.Context(), request)
 	if err != nil || len(page.Documents) != 1 || len(page.NextCursor) != 0 || server.scanCalls.Load() != 3 {
 		t.Fatalf("page=%+v calls=%d err=%v", page, server.scanCalls.Load(), err)

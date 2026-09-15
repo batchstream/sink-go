@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	sinkv1 "github.com/liran/sink-go/api/sink/v1"
 )
@@ -60,15 +61,9 @@ func (c *Client) Query(ctx context.Context, req QueryRequest) (QueryResponse, er
 		item := &sinkv1.SortField{Field: field.Field, Descending: field.Descending}
 		request.Sort = append(request.Sort, item)
 	}
-	if req.Projection != nil {
-		seen = make(map[string]bool)
-		for _, field := range req.Projection.Fields {
-			if strings.TrimSpace(field) == "" || seen[field] {
-				return empty, errors.New("projection fields must be nonempty and unique")
-			}
-			seen[field] = true
-		}
-		request.Projection = &sinkv1.Projection{Fields: append([]string(nil), req.Projection.Fields...), Exclude: req.Projection.Exclude}
+	request.Projection, err = req.Projection.toProto()
+	if err != nil {
+		return empty, err
 	}
 	response, err := c.rpc.Query(ctx, request, c.config.sinkCallOptions...)
 	if err != nil {
@@ -128,4 +123,19 @@ func (c *Client) Count(ctx context.Context, req CountRequest) (CountResponse, er
 	}
 	result := CountResponse{Count: response.GetCount(), Estimated: response.GetEstimated()}
 	return result, nil
+}
+
+func (p *Projection) toProto() (*sinkv1.Projection, error) {
+	if p == nil {
+		return nil, nil
+	}
+	seen := make(map[string]bool)
+	for _, field := range p.Fields {
+		if strings.TrimSpace(field) == "" || !utf8.ValidString(field) || seen[field] {
+			return nil, errors.New("projection fields must be nonempty, valid UTF-8 and unique")
+		}
+		seen[field] = true
+	}
+	projection := &sinkv1.Projection{Fields: append([]string(nil), p.Fields...), Exclude: p.Exclude}
+	return projection, nil
 }

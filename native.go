@@ -174,9 +174,10 @@ func (c *Client) Execute(ctx context.Context, req ExecuteRequest) (ExecuteRespon
 }
 
 type ScanRequest struct {
-	Command   Command
-	BatchSize int
-	Cursor    []byte
+	Command    Command
+	BatchSize  int
+	Cursor     []byte
+	Projection *Projection // Nil preserves the native projection.
 }
 
 type ScanResponse struct {
@@ -185,7 +186,7 @@ type ScanResponse struct {
 }
 
 // Scan returns one live page without retaining a server session. Reuse Command
-// and pass NextCursor back after successfully processing Documents. An empty
+// and Projection, and pass NextCursor back after processing Documents. An empty
 // NextCursor marks the end observed by this request. Cursors do not expire and
 // survive server restarts. Concurrent changes can affect pages and retries.
 // The SDK retries only explicitly marked temporary admission rejections, using
@@ -208,6 +209,10 @@ func (c *Client) Scan(ctx context.Context, req ScanRequest) (ScanResponse, error
 		return empty, err
 	}
 	request := &sinkv1.ScanRequest{Command: command, BatchSize: uint32(req.BatchSize), Cursor: bytes.Clone(req.Cursor)}
+	request.Projection, err = req.Projection.toProto()
+	if err != nil {
+		return empty, err
+	}
 	ctx, cancel := context.WithTimeout(ctx, c.config.scanTimeout)
 	defer cancel()
 	var response *sinkv1.ScanResponse
