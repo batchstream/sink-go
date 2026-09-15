@@ -14,6 +14,9 @@ import (
 
 	sinkv1 "github.com/liran/sink-go/api/sink/v1"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Command is shared by Execute, Query, Count and Scan. Store configuration selects the
@@ -185,8 +188,10 @@ type ScanResponse struct {
 // and pass NextCursor back after successfully processing Documents. An empty
 // NextCursor marks the end observed by this request. Cursors do not expire and
 // survive server restarts. Concurrent changes can affect pages and retries.
-// The SDK does not retry; checkpointing and idempotent processing belong to the
-// caller. Cancellation of one request does not invalidate an existing cursor.
+// The SDK retries only explicitly marked temporary admission rejections, using
+// the same request and cursor within ScanRetry and ScanTimeout. Checkpointing
+// and idempotent processing belong to the caller. Cancellation of one request
+// does not invalidate an existing cursor.
 func (c *Client) Scan(ctx context.Context, req ScanRequest) (ScanResponse, error) {
 	var empty ScanResponse
 	if c == nil || c.rpc == nil {
@@ -203,7 +208,23 @@ func (c *Client) Scan(ctx context.Context, req ScanRequest) (ScanResponse, error
 		return empty, err
 	}
 	request := &sinkv1.ScanRequest{Command: command, BatchSize: uint32(req.BatchSize), Cursor: bytes.Clone(req.Cursor)}
-	response, err := c.rpc.Scan(ctx, request, c.config.sinkCallOptions...)
+	ctx, cancel := context.WithTimeout(ctx, c.config.scanTimeout)
+	defer cancel()
+	var response *sinkv1.ScanResponse
+	backoff := c.config.scanRetry.InitialBackoff
+	for attempt := 1; attempt <= c.config.scanRetry.MaxAttempts; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return empty, fmt.Errorf("scan page: %w", status.FromContextError(err).Err())
+		}
+		response, err = c.rpc.Scan(ctx, request, c.config.sinkCallOptions...)
+		if err == nil || attempt == c.config.scanRetry.MaxAttempts || !retryableScanAdmission(err) {
+			break
+		}
+		if err := waitForBackoff(ctx, jitteredBackoff(backoff, c.config.scanRetry.Jitter)); err != nil {
+			return empty, fmt.Errorf("scan page: %w", status.FromContextError(err).Err())
+		}
+		backoff = nextBackoff(backoff, c.config.scanRetry)
+	}
 	if err != nil {
 		return empty, fmt.Errorf("scan page: %w", err)
 	}
@@ -226,4 +247,18 @@ func (c *Client) Scan(ctx context.Context, req ScanRequest) (ScanResponse, error
 		result.Documents = append(result.Documents, document)
 	}
 	return result, nil
+}
+
+func retryableScanAdmission(err error) bool {
+	failure := status.Convert(err)
+	if failure.Code() != codes.ResourceExhausted {
+		return false
+	}
+	for _, detail := range failure.Details() {
+		info, ok := detail.(*errdetails.ErrorInfo)
+		if ok && info.GetDomain() == "sink" && info.GetReason() == "SCAN_ADMISSION_REJECTED" {
+			return true
+		}
+	}
+	return false
 }

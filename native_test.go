@@ -26,6 +26,9 @@ type nativeRPCServer struct {
 	omitDocument  bool
 	stopped       chan struct{}
 	requests      chan *sinkv1.ExecuteRequest
+	scanRequests  chan *sinkv1.ScanRequest
+	scanFailures  int32
+	scanError     error
 }
 
 func (s *nativeRPCServer) Execute(_ context.Context, req *sinkv1.ExecuteRequest) (*sinkv1.ExecuteResponse, error) {
@@ -43,7 +46,13 @@ func (s *nativeRPCServer) Execute(_ context.Context, req *sinkv1.ExecuteRequest)
 }
 
 func (s *nativeRPCServer) Scan(ctx context.Context, req *sinkv1.ScanRequest) (*sinkv1.ScanResponse, error) {
-	s.scanCalls.Add(1)
+	call := s.scanCalls.Add(1)
+	if s.scanRequests != nil {
+		s.scanRequests <- req
+	}
+	if call <= s.scanFailures {
+		return nil, s.scanError
+	}
 	if s.stopped != nil {
 		defer close(s.stopped)
 	}
