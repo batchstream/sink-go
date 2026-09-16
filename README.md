@@ -392,9 +392,10 @@ Incomplete counts and approximate HTTP search totals fail. Query and Count retur
 and the SDK retries neither operation.
 
 `Dataset` also exposes `Execute`, `Query`, `Count` and `Scan` using the same request
-and response types as Client. URI is bound automatically. BSON datasets bind the
-database and collection from their URI; JSON datasets bind the index from their URI. Empty Query/Count commands select all records in the
-Dataset. MongoDB Scan also accepts an empty Command; JSON Scan needs a body with
+and response types as Client. The SDK binds the complete resource URI without
+interpreting its path. Each Store adapter resolves the resource and supplies
+default queries. Empty Query/Count commands select all records in the Dataset.
+MongoDB Scan also accepts an empty Command; search Scan needs a body with
 an explicit stable sort. Conflicting resource URIs or BSON collection targets fail.
 The Dataset wrappers retain native error, retry and cursor semantics.
 
@@ -407,7 +408,7 @@ products, err := sink.NewDataset(client, opts)
 if err != nil {
  return err
 }
-// The helper inserts the command's first field and collection name.
+// The helper inserts the operation; the Store binds its collection from the URI.
 arguments := bson.D{{Key: "filter", Value: bson.D{{Key: "active", Value: true}}}}
 command, err := products.NewBSONCommand("find", arguments)
 if err != nil {
@@ -440,12 +441,15 @@ response, err := products.Execute(ctx, executeRequest)
 ```
 
 An existing full BSON command can also be passed; its first value must match the
-Dataset collection or be an empty string placeholder. Native BSON types and
-ordered fields are preserved. For a JSON Dataset, supply an index-relative Path
+URI collection or be an empty string placeholder; the MongoDB adapter validates
+and binds it. The SDK forwards the payload unchanged. The Dataset BSON helper
+accepts ordered `bson.D` arguments and encodes the command once. Native BSON types
+and ordered fields are preserved. For search Stores, supply an index-relative Path
 such as `/_search`, `/_mapping` or `/_doc/id`; empty Execute Path selects the index
 itself for inspection with GET/HEAD. Explicit index creation/deletion is rejected
-by updated servers. Query/Count/Scan default to `POST /<index>/_search`. JSON ContentType is
-inferred when omitted; specify NDJSON explicitly for bulk bodies. Use Client for
+by updated servers. Query/Count/Scan default to `POST /<index>/_search`. For nonempty
+payloads, ContentType defaults to the Dataset document encoding; explicit
+ContentType takes precedence, including NDJSON for bulk bodies. Use Client for
 database, cluster and multi-index endpoints. Dataset binding is a convenience;
 it does not restrict cross-collection operations inside native payloads.
 

@@ -32,7 +32,7 @@ type Record struct {
 // operation fails; native methods retain the corresponding Client semantics.
 type Dataset struct {
 	client          *Client
-	resource        uri.Address
+	uri             string
 	encoding        DocumentEncoding
 	mergeProgram    LuaProgram
 	hasMergeProgram bool
@@ -44,8 +44,7 @@ func NewDataset(client *Client, opts DatasetOptions) (*Dataset, error) {
 	if client == nil || client.rpc == nil {
 		return nil, errors.New("create dataset: client is required")
 	}
-	resource, err := uri.Parse(opts.URI)
-	if err != nil {
+	if _, err := uri.Parse(opts.URI); err != nil {
 		return nil, fmt.Errorf("create dataset: %w", err)
 	}
 	if opts.Encoding != DocumentEncodingJSON && opts.Encoding != DocumentEncodingBSON {
@@ -53,7 +52,7 @@ func NewDataset(client *Client, opts DatasetOptions) (*Dataset, error) {
 	}
 	dataset := &Dataset{
 		client:   client,
-		resource: resource,
+		uri:      opts.URI,
 		encoding: opts.Encoding,
 	}
 	if opts.MergeProgram != nil {
@@ -78,7 +77,7 @@ func (d *Dataset) Read(ctx context.Context, keys ...Key) ([]ReadResult, error) {
 	}
 	addresses := make([]Address, len(keys))
 	for index, key := range keys {
-		address, err := d.address(key)
+		address, err := NewRecordAddress(d.uri, key)
 		if err != nil {
 			return nil, fmt.Errorf("dataset read key %d: %w", index, err)
 		}
@@ -214,7 +213,7 @@ func (d *Dataset) validate(operation string) error {
 func (d *Dataset) encodeRecord(record Record) (Address, Document, error) {
 	var emptyAddress Address
 	var emptyDocument Document
-	address, err := d.address(record.Key)
+	address, err := NewRecordAddress(d.uri, record.Key)
 	if err != nil {
 		return emptyAddress, emptyDocument, err
 	}
@@ -223,10 +222,6 @@ func (d *Dataset) encodeRecord(record Record) (Address, Document, error) {
 		return emptyAddress, emptyDocument, err
 	}
 	return address, document, nil
-}
-
-func (d *Dataset) address(key Key) (Address, error) {
-	return NewRecordAddress(d.resource.String(), key)
 }
 
 func (d *Dataset) write(

@@ -36,12 +36,12 @@ type Command struct {
 
 // NewBSONCommand encodes an ordered document without opening a database
 // connection. Use a struct, bson.D, or bson.Raw to preserve command field order.
-// The target is a database resource URI, e.g. sink://primary/catalog.
+// The Store interprets the target resource URI and command semantics.
 func NewBSONCommand(target string, value any) (Command, error) {
 	var empty Command
 	address, err := uri.Parse(target)
-	if err != nil || len(address.Segments()) != 1 || value == nil {
-		return empty, errors.New("BSON command requires a sink://store/database URI and ordered value")
+	if err != nil || value == nil {
+		return empty, errors.New("BSON command requires a canonical resource URI and ordered value")
 	}
 	valueType := reflect.TypeOf(value)
 	for valueType.Kind() == reflect.Pointer {
@@ -111,7 +111,7 @@ func (c Command) toProto() (*sinkv1.Command, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid native ContentType: %w", err)
 		}
-		if mediaType == "application/bson" {
+		if mediaType == "application/bson" && len(c.Payload) > 0 {
 			if err := bson.Raw(c.Payload).Validate(); err != nil {
 				return nil, fmt.Errorf("invalid BSON command: %w", err)
 			}

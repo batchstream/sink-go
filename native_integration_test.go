@@ -95,10 +95,8 @@ end`))
 			t.Fatalf("index setup: %+v %v", response, err)
 		}
 	}
-	find := bson.D{{Key: "find", Value: collection}, {Key: "filter", Value: bson.D{{Key: "count", Value: 2}}}}
-	command, err = sink.NewBSONCommand("sink://primary/sink_go_client",
-
-		find)
+	find := bson.D{{Key: "find", Value: ""}, {Key: "filter", Value: bson.D{{Key: "count", Value: 2}}}}
+	command, err = sink.NewBSONCommand(opts.URI, find)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,6 +119,32 @@ end`))
 	result, err := dataset.Count(ctx, all)
 	if err != nil || result.Count != 1 || !result.Estimated {
 		t.Fatalf("full Dataset count=%+v err=%v", result, err)
+	}
+	allQuery := sink.QueryRequest{}
+	if page, err := dataset.Query(ctx, allQuery); err != nil || len(page.Documents) != 1 {
+		t.Fatalf("default Dataset query=%+v err=%v", page, err)
+	}
+	allScan := sink.ScanRequest{}
+	if page, err := dataset.Scan(ctx, allScan); err != nil || len(page.Documents) != 1 {
+		t.Fatalf("default Dataset scan=%+v err=%v", page, err)
+	}
+	all.Command.ContentType = "application/bson"
+	if count, err := dataset.Count(ctx, all); err != nil || count.Count != 1 || !count.Estimated {
+		t.Fatalf("default query with explicit encoding=%+v err=%v", count, err)
+	}
+	conflicts := []bson.D{
+		{{Key: "find", Value: "other"}},
+		{{Key: "find", Value: ""}, {Key: "find", Value: "other"}},
+	}
+	for _, conflict := range conflicts {
+		conflicting, err := sink.NewBSONCommand(opts.URI, conflict)
+		if err != nil {
+			t.Fatal(err)
+		}
+		request := sink.QueryRequest{Command: conflicting}
+		if _, err := dataset.Query(ctx, request); status.Code(err) != codes.InvalidArgument {
+			t.Fatalf("Store must reject conflicting native commands: %v", err)
+		}
 	}
 	query.Page = 2
 	if page, err := dataset.Query(ctx, query); err != nil || len(page.Documents) != 0 || page.HasMore {
@@ -161,9 +185,7 @@ end`))
 		t.Fatalf("Scan projection was ignored: %s", rawScan)
 	}
 	invalid := bson.D{{Key: "count", Value: collection}, {Key: "unknownOption", Value: true}}
-	command, err = sink.NewBSONCommand("sink://primary/sink_go_client",
-
-		invalid)
+	command, err = sink.NewBSONCommand(opts.URI, invalid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,9 +197,7 @@ end`))
 	}
 	modify := bson.D{{Key: "findAndModify", Value: collection}, {Key: "query", Value: bson.D{{Key: "_id", Value: "quota"}}},
 		{Key: "update", Value: bson.D{{Key: "$inc", Value: bson.D{{Key: "count", Value: 1}}}}}, {Key: "new", Value: true}}
-	command, err = sink.NewBSONCommand("sink://primary/sink_go_client",
-
-		modify)
+	command, err = sink.NewBSONCommand(opts.URI, modify)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -33,7 +33,7 @@ func (s *datasetNativeServer) Scan(_ context.Context, req *sinkv1.ScanRequest) (
 	return response, nil
 }
 
-func TestDatasetNativeMethodsBindScopeAndRetainControls(t *testing.T) {
+func TestDatasetNativeMethodsBindOpaqueURIAndRetainControls(t *testing.T) {
 	for _, encoding := range []sink.DocumentEncoding{sink.DocumentEncodingBSON, sink.DocumentEncodingJSON} {
 		t.Run(encoding.String(), func(t *testing.T) {
 			server := &datasetNativeServer{executes: make(chan *sinkv1.ExecuteRequest, 1), scans: make(chan *sinkv1.ScanRequest, 1)}
@@ -41,7 +41,7 @@ func TestDatasetNativeMethodsBindScopeAndRetainControls(t *testing.T) {
 			server.counts = make(chan *sinkv1.CountRequest, 1)
 			clientOptions := sink.ClientOptions{}
 			client := startTestClient(t, server, clientOptions)
-			opts := sink.DatasetOptions{URI: testuri.Dataset("primary", "catalog", "products", encoding == sink.DocumentEncodingBSON), Encoding: encoding}
+			opts := sink.DatasetOptions{URI: "sink://primary/tenant/catalog/products", Encoding: encoding}
 			dataset, err := sink.NewDataset(client, opts)
 			if err != nil {
 				t.Fatal(err)
@@ -52,7 +52,7 @@ func TestDatasetNativeMethodsBindScopeAndRetainControls(t *testing.T) {
 				t.Fatal(err)
 			}
 			captured := <-server.queries
-			assertDatasetNativeScope(t, captured.Command, encoding)
+			assertDatasetNativeResource(t, captured.Command, opts.URI)
 			if captured.Page != 3 || captured.PageSize != 1 || !captured.Sort[0].Descending || captured.Projection.Fields[0] != "name" || query.Command.URI != "" || len(query.Command.Payload) != 0 {
 				t.Fatalf("query controls or caller request changed: %v %+v", captured, query)
 			}
@@ -61,13 +61,13 @@ func TestDatasetNativeMethodsBindScopeAndRetainControls(t *testing.T) {
 				t.Fatalf("count=%+v err=%v", result, err)
 			}
 			countRequest := <-server.counts
-			assertDatasetNativeScope(t, countRequest.Command, encoding)
+			assertDatasetNativeResource(t, countRequest.Command, opts.URI)
 			scan := sink.ScanRequest{BatchSize: 23, Cursor: []byte("checkpoint"), Projection: projection}
 			if page, err := dataset.Scan(t.Context(), scan); err != nil || len(page.Documents) != 1 {
 				t.Fatalf("scan=%+v err=%v", page, err)
 			}
 			scanRequest := <-server.scans
-			assertDatasetNativeScope(t, scanRequest.Command, encoding)
+			assertDatasetNativeResource(t, scanRequest.Command, opts.URI)
 			if scanRequest.BatchSize != 23 || string(scanRequest.Cursor) != "checkpoint" || scanRequest.GetProjection().GetFields()[0] != "name" {
 				t.Fatal("batch size lost")
 			}
@@ -84,30 +84,23 @@ func TestDatasetNativeMethodsBindScopeAndRetainControls(t *testing.T) {
 				t.Fatalf("execute=%+v err=%v", result, err)
 			}
 			executed := (<-server.executes).Command
-			if executed.Uri != "sink://primary/products" && executed.Uri != "sink://primary/catalog" || !bytes.Equal(executed.Payload, command.Payload) {
+			if executed.Uri != opts.URI || !bytes.Equal(executed.Payload, command.Payload) {
 				t.Fatalf("execute lost command: %v", executed)
 			}
 			if encoding == sink.DocumentEncodingJSON && (executed.Path != "/_mapping" || executed.Query != command.Query || executed.ContentType != "application/json" || len(executed.Headers) != 1 || command.Path != "/_mapping") {
 				t.Fatalf("HTTP scope or controls lost: %v", executed)
 			}
-			if encoding == sink.DocumentEncodingBSON && (bson.Raw(executed.Payload).Lookup("createIndexes").StringValue() != "products" || bson.Raw(executed.Payload).Lookup("comment").Type != bson.TypeDateTime) {
+			if encoding == sink.DocumentEncodingBSON && (bson.Raw(executed.Payload).Lookup("createIndexes").StringValue() != "" || bson.Raw(executed.Payload).Lookup("comment").Type != bson.TypeDateTime) {
 				t.Fatalf("BSON scope or type lost: %v", executed)
 			}
 		})
 	}
 }
 
-func assertDatasetNativeScope(t *testing.T, command *sinkv1.Command, encoding sink.DocumentEncoding) {
+func assertDatasetNativeResource(t *testing.T, command *sinkv1.Command, resource string) {
 	t.Helper()
-	if command.Uri != "sink://primary/products" && command.Uri != "sink://primary/catalog" {
-		t.Fatalf("store lost: %v", command)
-	}
-	if encoding == sink.DocumentEncodingBSON {
-		if command.Uri != "sink://primary/catalog" || command.ContentType != "application/bson" || bson.Raw(command.Payload).Lookup("find").StringValue() != "products" {
-			t.Fatalf("BSON scope lost: %v", command)
-		}
-	} else if command.Uri != "sink://primary/products" || command.Method != "POST" || command.Path != "/_search" {
-		t.Fatalf("search scope lost: %v", command)
+	if command.Uri != resource || command.Method != "" || command.Path != "" || command.ContentType != "" || len(command.Payload) != 0 {
+		t.Fatalf("SDK changed the resource or supplied a backend query: %v", command)
 	}
 }
 
@@ -116,31 +109,16 @@ func TestDatasetNativeRejectsScopeConflictsAndInvalidCommands(t *testing.T) {
 	clientOptions := sink.ClientOptions{}
 	client := startTestClient(t, server, clientOptions)
 	for _, encoding := range []sink.DocumentEncoding{sink.DocumentEncodingBSON, sink.DocumentEncodingJSON} {
-		opts := sink.DatasetOptions{URI: testuri.Dataset("primary", "catalog", "products", encoding == sink.DocumentEncodingBSON), Encoding: encoding}
+		opts := sink.DatasetOptions{URI: "sink://primary/tenant/catalog/products", Encoding: encoding}
 		dataset, err := sink.NewDataset(client, opts)
 		if err != nil {
 			t.Fatal(err)
 		}
-		commands := []sink.Command{{URI: "sink://other"}, {URI: "sink://primary/other"}}
-		if encoding == sink.DocumentEncodingBSON {
-			other := bson.D{{Key: "find", Value: "other"}}
-			payload, err := bson.Marshal(other)
-			if err != nil {
-				t.Fatal(err)
-			}
-			otherCommand := sink.Command{Payload: payload}
-			invalid := sink.Command{Payload: []byte("invalid")}
-			wrongEncoding := sink.Command{ContentType: "application/json"}
-			commands = append(commands, otherCommand, invalid, wrongEncoding)
-			duplicate := bson.D{{Key: "find", Value: "other"}}
-			if _, err := dataset.NewBSONCommand("find", duplicate); err == nil {
-				t.Fatal("builder allowed a second collection target")
-			}
-		} else {
-			for _, path := range []string{"https://example.com/", "//other/_search", "../other", "/../other", "/%2e%2e/other", "/_search?q=x", "/_search#fragment", "/%zz"} {
-				command := sink.Command{Path: path}
-				commands = append(commands, command)
-			}
+		commands := []sink.Command{
+			{URI: "sink://other"},
+			{URI: "sink://primary/other"},
+			{ContentType: "application/bson", Payload: []byte("invalid")},
+			{ContentType: "invalid content type"},
 		}
 		for _, command := range commands {
 			request := sink.QueryRequest{Command: command}
@@ -205,7 +183,29 @@ func TestDatasetBSONPlaceholderPreservesTypesAndCallerBytes(t *testing.T) {
 	}
 	captured := (<-server.queries).Command
 	raw := bson.Raw(captured.Payload)
-	if !bytes.Equal(payload, original) || raw.Lookup("find").StringValue() != "products" || raw.Lookup("filter", "_id").ObjectID() != id || raw.Lookup("filter", "at").DateTime() != 123 || raw.Lookup("filter", "n").Int64() != 1<<53+1 {
-		t.Fatalf("placeholder binding lost native BSON or changed caller: %s", raw)
+	if !bytes.Equal(payload, original) || !bytes.Equal(captured.Payload, original) || captured.Uri != opts.URI || raw.Lookup("find").StringValue() != "" || raw.Lookup("filter", "_id").ObjectID() != id || raw.Lookup("filter", "at").DateTime() != 123 || raw.Lookup("filter", "n").Int64() != 1<<53+1 {
+		t.Fatalf("forwarding lost native BSON or changed caller: %s", raw)
+	}
+}
+
+func TestDatasetNativePreservesExplicitEncodingAndStoreDefinedOperation(t *testing.T) {
+	for _, encoding := range []sink.DocumentEncoding{sink.DocumentEncodingJSON, sink.DocumentEncodingBSON} {
+		server := &datasetNativeServer{executes: make(chan *sinkv1.ExecuteRequest, 1)}
+		clientOptions := sink.ClientOptions{}
+		client := startTestClient(t, server, clientOptions)
+		opts := sink.DatasetOptions{URI: "sink://custom", Encoding: encoding}
+		dataset, err := sink.NewDataset(client, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		command := sink.Command{URI: opts.URI, Method: "RUN", Path: "store-defined-operation", ContentType: "application/octet-stream", Payload: []byte{0, 1, 2}}
+		request := sink.ExecuteRequest{Command: command}
+		if _, err := dataset.Execute(t.Context(), request); err != nil {
+			t.Fatal(err)
+		}
+		captured := (<-server.executes).Command
+		if captured.Uri != opts.URI || captured.Method != command.Method || captured.Path != command.Path || captured.ContentType != command.ContentType || !bytes.Equal(captured.Payload, command.Payload) {
+			t.Fatalf("SDK interpreted the Store's command: %v", captured)
+		}
 	}
 }

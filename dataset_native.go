@@ -3,63 +3,32 @@ package sink
 import (
 	"context"
 	"errors"
-	"fmt"
-	"mime"
-	"net/http"
-	"net/url"
 	"strings"
 
-	"github.com/liran/sink-go/uri"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-// NewBSONCommand binds a collection command to this BSON Dataset. Arguments
+// NewBSONCommand encodes a collection command for this Dataset. Arguments
 // contain only the remaining command fields, e.g. filter, pipeline or indexes.
-// Use bson.D to preserve argument order; native BSON types are retained.
-func (d *Dataset) NewBSONCommand(operation string, arguments any) (Command, error) {
+// The Store binds the empty collection placeholder using the resource URI.
+// Ordered arguments and native BSON types are retained.
+func (d *Dataset) NewBSONCommand(operation string, arguments bson.D) (Command, error) {
 	var empty Command
 	if err := d.validate("BSON command"); err != nil {
 		return empty, err
 	}
-	if d.encoding != DocumentEncodingBSON || strings.TrimSpace(operation) == "" {
-		return empty, errors.New("dataset BSON command requires BSON encoding and an operation")
+	if strings.TrimSpace(operation) == "" {
+		return empty, errors.New("dataset BSON command requires an operation")
 	}
-	database, dataset, err := d.nativeScope()
-	if err != nil {
-		return empty, err
-	}
-	command := bson.D{{Key: operation, Value: dataset}}
-	if arguments != nil {
-		payload, err := bson.Marshal(arguments)
-		if err != nil {
-			return empty, fmt.Errorf("encode dataset command arguments: %w", err)
-		}
-		var fields bson.D
-		if err := bson.Unmarshal(payload, &fields); err != nil {
-			return empty, fmt.Errorf("decode dataset command arguments: %w", err)
-		}
-		seen := map[string]bool{operation: true}
-		for _, field := range fields {
-			if seen[field.Key] {
-				return empty, fmt.Errorf("duplicate dataset command field %q", field.Key)
-			}
-			seen[field.Key] = true
-		}
-		command = append(command, fields...)
-	}
-	target, err := uri.New(d.resource.Store(), []string{database})
-	if err != nil {
-		return empty, err
-	}
-	return NewBSONCommand(target.String(), command)
+	command := bson.D{{Key: operation, Value: ""}}
+	command = append(command, arguments...)
+	return NewBSONCommand(d.uri, command)
 }
 
-// Execute binds a native command to this Dataset. For BSON the first field must
-// target this collection (an empty string is filled in). For JSON, Path is
-// relative to the index, e.g. /_mapping; empty selects the index itself.
-// Use Client.Execute for database, cluster or multi-index operations.
+// Execute binds a native command to this Dataset's resource URI. The Store
+// interprets the resource path and validates the command against that resource.
 func (d *Dataset) Execute(ctx context.Context, req ExecuteRequest) (ExecuteResponse, error) {
-	command, err := d.bindNativeCommand(req.Command, false)
+	command, err := d.bindNativeCommand(req.Command)
 	if err != nil {
 		var empty ExecuteResponse
 		return empty, err
@@ -69,10 +38,10 @@ func (d *Dataset) Execute(ctx context.Context, req ExecuteRequest) (ExecuteRespo
 }
 
 // Query fetches a page from this Dataset. An empty Command selects all records.
-// BSON uses find by default; JSON uses POST /<index>/_search. Query controls
-// and native payload semantics are the same as Client.Query.
+// The Store selects its default query. Query controls and native payload
+// semantics are the same as Client.Query.
 func (d *Dataset) Query(ctx context.Context, req QueryRequest) (QueryResponse, error) {
-	command, err := d.bindNativeCommand(req.Command, true)
+	command, err := d.bindNativeCommand(req.Command)
 	if err != nil {
 		var empty QueryResponse
 		return empty, err
@@ -84,7 +53,7 @@ func (d *Dataset) Query(ctx context.Context, req QueryRequest) (QueryResponse, e
 // Count counts matches in this Dataset. An empty Command counts all records;
 // ordinary unfiltered MongoDB counts automatically use collection metadata.
 func (d *Dataset) Count(ctx context.Context, req CountRequest) (CountResponse, error) {
-	command, err := d.bindNativeCommand(req.Command, true)
+	command, err := d.bindNativeCommand(req.Command)
 	if err != nil {
 		var empty CountResponse
 		return empty, err
@@ -96,7 +65,7 @@ func (d *Dataset) Count(ctx context.Context, req CountRequest) (CountResponse, e
 // Scan returns one live page scoped to this Dataset. Reuse the request with
 // NextCursor to continue. JSON commands must provide a unique stable sort.
 func (d *Dataset) Scan(ctx context.Context, req ScanRequest) (ScanResponse, error) {
-	command, err := d.bindNativeCommand(req.Command, true)
+	command, err := d.bindNativeCommand(req.Command)
 	if err != nil {
 		var empty ScanResponse
 		return empty, err
@@ -105,99 +74,22 @@ func (d *Dataset) Scan(ctx context.Context, req ScanRequest) (ScanResponse, erro
 	return d.client.Scan(ctx, req)
 }
 
-func (d *Dataset) bindNativeCommand(command Command, query bool) (Command, error) {
+func (d *Dataset) bindNativeCommand(command Command) (Command, error) {
 	var empty Command
 	if err := d.validate("native command"); err != nil {
 		return empty, err
 	}
-	database, dataset, err := d.nativeScope()
-	if err != nil {
-		return empty, err
-	}
-	target := d.resource
-	if d.encoding == DocumentEncodingBSON {
-		target, err = uri.New(d.resource.Store(), []string{database})
-		if err != nil {
-			return empty, err
-		}
-	}
-	if command.URI != "" && command.URI != target.String() {
+	if command.URI != "" && command.URI != d.uri {
 		return empty, errors.New("native command URI differs from Dataset resource")
 	}
-	command.URI = target.String()
-	if d.encoding == DocumentEncodingBSON {
-		if command.ContentType == "" {
-			command.ContentType = "application/bson"
-		}
-		mediaType, _, err := mime.ParseMediaType(command.ContentType)
-		if err != nil || mediaType != "application/bson" {
-			return empty, errors.New("BSON Dataset requires application/bson commands")
-		}
-		if len(command.Payload) == 0 && query {
-			find := bson.D{{Key: "find", Value: dataset}}
-			command.Payload, err = bson.Marshal(find)
-			if err != nil {
-				return empty, err
-			}
-		}
-		var document bson.D
-		if err := bson.Unmarshal(command.Payload, &document); err != nil {
-			return empty, fmt.Errorf("decode dataset command: %w", err)
-		}
-		if len(document) == 0 {
-			return empty, errors.New("dataset command is empty")
-		}
-		collection, ok := document[0].Value.(string)
-		if !ok || (collection != "" && collection != dataset) {
-			return empty, errors.New("native command must target the Dataset collection; use Client for other scopes")
-		}
-		if collection == "" {
-			document[0].Value = dataset
-			command.Payload, err = bson.Marshal(document)
-			if err != nil {
-				return empty, err
-			}
-		}
-		return command, nil
-	}
-	// Search resource URIs contain one index segment.
+	command.URI = d.uri
 	if command.ContentType == "" && len(command.Payload) > 0 {
-		command.ContentType = "application/json"
-	}
-	if query {
-		if command.Path == "" {
-			command.Path = "/_search"
-		}
-		if command.Method == "" {
-			command.Method = http.MethodPost
-		}
-	}
-	if command.Path != "" {
-		parsed, err := url.Parse(command.Path)
-		if err != nil || !strings.HasPrefix(command.Path, "/") || strings.HasPrefix(command.Path, "//") || parsed.IsAbs() || parsed.Host != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
-			return empty, errors.New("dataset command path must be relative to its index, with query in Command.Query")
-		}
-		for _, segment := range strings.Split(parsed.Path, "/") {
-			if segment == "." || segment == ".." {
-				return empty, errors.New("dataset command path cannot contain dot segments")
-			}
+		switch d.encoding {
+		case DocumentEncodingBSON:
+			command.ContentType = "application/bson"
+		case DocumentEncodingJSON:
+			command.ContentType = "application/json"
 		}
 	}
 	return command, nil
-}
-
-// Native helpers deliberately interpret the built-in adapters' resource grammars.
-// Generic record addressing never infers path meaning from document encoding.
-func (d *Dataset) nativeScope() (string, string, error) {
-	segments := d.resource.Segments()
-	if d.encoding == DocumentEncodingBSON {
-		if len(segments) != 2 {
-			return "", "", errors.New("MongoDB native resource URI requires database/collection")
-		}
-		return segments[0], segments[1], nil
-	}
-	if len(segments) != 1 {
-		return "", "", errors.New("search native resource URI requires one index segment")
-	}
-	return "", segments[0], nil
 }
