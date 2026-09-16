@@ -3,9 +3,12 @@ package sink
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
+
+	"github.com/liran/sink-go/uri"
 
 	sinkv1 "github.com/liran/sink-go/api/sink/v1"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -129,61 +132,51 @@ func (k Key) validate() error {
 	return nil
 }
 
-// Address identifies a record through logical names rather than physical
-// database terminology.
-type Address struct {
-	store     string
-	namespace string
-	dataset   string
-	key       Key
+// Address wraps a canonical Store URI. Store adapters interpret the path.
+type Address struct{ value uri.Address }
+
+func NewAddress(value string) (Address, error) {
+	parsed, err := uri.Parse(value)
+	address := Address{value: parsed}
+	return address, err
 }
 
-func NewAddress(store string, namespace string, dataset string, key Key) (Address, error) {
-	var address Address
-	if store == "" {
-		return address, errors.New("record address store is required")
-	}
-	if namespace == "" {
-		return address, errors.New("record address namespace is required")
-	}
-	if dataset == "" {
-		return address, errors.New("record address dataset is required")
-	}
+// NewRecordAddress appends a typed key to a Store-owned resource URI.
+func NewRecordAddress(resource string, key Key) (Address, error) {
+	var empty Address
 	if err := key.validate(); err != nil {
-		return address, err
+		return empty, err
 	}
-	address = Address{
-		store:     store,
-		namespace: namespace,
-		dataset:   dataset,
-		key:       key,
+	parsed, err := uri.AppendKey(resource, key.uriKey())
+	if err != nil {
+		return empty, err
 	}
+	address := Address{value: parsed}
 	return address, nil
 }
 
-func (a Address) Store() string {
-	return a.store
-}
+func (a Address) Store() string   { return a.value.Store() }
+func (a Address) URI() string     { return a.value.String() }
+func (a Address) validate() error { _, err := uri.Parse(a.URI()); return err }
 
-func (a Address) Namespace() string {
-	return a.namespace
-}
-
-func (a Address) Dataset() string {
-	return a.dataset
-}
-
-func (a Address) validate() error {
-	if a.store == "" {
-		return errors.New("record address store is required")
+func (k Key) uriKey() uri.Key {
+	key := uri.Key{}
+	switch k.kind {
+	case keyKindString:
+		key.Type = "string"
+		key.Data = []byte(k.stringValue)
+	case keyKindInt64:
+		key.Type = "int64"
+		key.Data = make([]byte, 8)
+		binary.BigEndian.PutUint64(key.Data, uint64(k.int64Value))
+	case keyKindBytes:
+		key.Type = "bytes"
+		key.Data = bytes.Clone(k.bytesValue)
+	case keyKindOpaque:
+		key.Type = "opaque:" + k.opaqueType
+		key.Data = bytes.Clone(k.bytesValue)
 	}
-	if a.namespace == "" {
-		return errors.New("record address namespace is required")
-	}
-	if a.dataset == "" {
-		return errors.New("record address dataset is required")
-	}
-	return a.key.validate()
+	return key
 }
 
 // Document contains one immutable, explicitly encoded user object.

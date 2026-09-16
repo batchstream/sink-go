@@ -7,36 +7,8 @@ import (
 	sinkv1 "github.com/liran/sink-go/api/sink/v1"
 )
 
-func (k Key) toProto() *sinkv1.RecordKey {
-	key := &sinkv1.RecordKey{}
-	switch k.kind {
-	case keyKindString:
-		kind := &sinkv1.RecordKey_StringValue{StringValue: k.stringValue}
-		key.Kind = kind
-	case keyKindInt64:
-		kind := &sinkv1.RecordKey_Int64Value{Int64Value: k.int64Value}
-		key.Kind = kind
-	case keyKindBytes:
-		kind := &sinkv1.RecordKey_BytesValue{BytesValue: bytes.Clone(k.bytesValue)}
-		key.Kind = kind
-	case keyKindOpaque:
-		opaque := &sinkv1.OpaqueValue{
-			Type: k.opaqueType,
-			Data: bytes.Clone(k.bytesValue),
-		}
-		kind := &sinkv1.RecordKey_OpaqueValue{OpaqueValue: opaque}
-		key.Kind = kind
-	}
-	return key
-}
-
 func (a Address) toProto() *sinkv1.RecordAddress {
-	address := &sinkv1.RecordAddress{
-		Store:     a.store,
-		Namespace: a.namespace,
-		Dataset:   a.dataset,
-		Key:       a.key.toProto(),
-	}
+	address := &sinkv1.RecordAddress{Uri: a.URI()}
 	return address
 }
 
@@ -83,11 +55,7 @@ func (o WriteOperation) toProto() *sinkv1.WriteOperation {
 			IncomingDocument: o.merge.incoming.toProto(),
 			LuaProgram:       program,
 		}
-		// Field 2 used to select missing-document behavior; value 2 meant
-		// CREATE. New servers reserve and ignore it, while older servers need it
-		// to provide the SDK's single create-or-merge behavior during a rolling
-		// upgrade.
-		merge.ProtoReflect().SetUnknown([]byte{0x10, 0x02})
+
 		action := &sinkv1.WriteOperation_Merge{Merge: merge}
 		operation.Action = action
 	}

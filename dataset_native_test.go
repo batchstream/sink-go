@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/liran/sink-go/internal/testuri"
+
 	sink "github.com/liran/sink-go"
 	sinkv1 "github.com/liran/sink-go/api/sink/v1"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -39,7 +41,7 @@ func TestDatasetNativeMethodsBindScopeAndRetainControls(t *testing.T) {
 			server.counts = make(chan *sinkv1.CountRequest, 1)
 			clientOptions := sink.ClientOptions{}
 			client := startTestClient(t, server, clientOptions)
-			opts := sink.DatasetOptions{Store: "primary", Namespace: "catalog", Dataset: "products", Encoding: encoding}
+			opts := sink.DatasetOptions{URI: testuri.Dataset("primary", "catalog", "products", encoding == sink.DocumentEncodingBSON), Encoding: encoding}
 			dataset, err := sink.NewDataset(client, opts)
 			if err != nil {
 				t.Fatal(err)
@@ -82,13 +84,13 @@ func TestDatasetNativeMethodsBindScopeAndRetainControls(t *testing.T) {
 				t.Fatalf("execute=%+v err=%v", result, err)
 			}
 			executed := (<-server.executes).Command
-			if executed.Store != opts.Store || !bytes.Equal(executed.Payload, command.Payload) {
+			if executed.Store != "primary" || !bytes.Equal(executed.Payload, command.Payload) {
 				t.Fatalf("execute lost command: %v", executed)
 			}
 			if encoding == sink.DocumentEncodingJSON && (executed.Path != "/products/_mapping" || executed.Query != command.Query || executed.ContentType != "application/json" || len(executed.Headers) != 1 || command.Path != "/_mapping") {
 				t.Fatalf("HTTP scope or controls lost: %v", executed)
 			}
-			if encoding == sink.DocumentEncodingBSON && (bson.Raw(executed.Payload).Lookup("createIndexes").StringValue() != opts.Dataset || bson.Raw(executed.Payload).Lookup("comment").Type != bson.TypeDateTime) {
+			if encoding == sink.DocumentEncodingBSON && (bson.Raw(executed.Payload).Lookup("createIndexes").StringValue() != "products" || bson.Raw(executed.Payload).Lookup("comment").Type != bson.TypeDateTime) {
 				t.Fatalf("BSON scope or type lost: %v", executed)
 			}
 		})
@@ -114,7 +116,7 @@ func TestDatasetNativeRejectsScopeConflictsAndInvalidCommands(t *testing.T) {
 	clientOptions := sink.ClientOptions{}
 	client := startTestClient(t, server, clientOptions)
 	for _, encoding := range []sink.DocumentEncoding{sink.DocumentEncodingBSON, sink.DocumentEncodingJSON} {
-		opts := sink.DatasetOptions{Store: "primary", Namespace: "catalog", Dataset: "products", Encoding: encoding}
+		opts := sink.DatasetOptions{URI: testuri.Dataset("primary", "catalog", "products", encoding == sink.DocumentEncodingBSON), Encoding: encoding}
 		dataset, err := sink.NewDataset(client, opts)
 		if err != nil {
 			t.Fatal(err)
@@ -183,7 +185,7 @@ func TestDatasetBSONPlaceholderPreservesTypesAndCallerBytes(t *testing.T) {
 	server := &queryRPCServer{queries: make(chan *sinkv1.QueryRequest, 1)}
 	clientOptions := sink.ClientOptions{}
 	client := startTestClient(t, server, clientOptions)
-	opts := sink.DatasetOptions{Store: "primary", Namespace: "catalog", Dataset: "products", Encoding: sink.DocumentEncodingBSON}
+	opts := sink.DatasetOptions{URI: testuri.Resource("primary", []string{"catalog", "products"}), Encoding: sink.DocumentEncodingBSON}
 	dataset, err := sink.NewDataset(client, opts)
 	if err != nil {
 		t.Fatal(err)

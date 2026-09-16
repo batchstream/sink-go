@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/liran/sink-go/internal/testuri"
+
 	sink "github.com/liran/sink-go"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"google.golang.org/grpc/codes"
@@ -48,14 +50,13 @@ end`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	opts := sink.DatasetOptions{Store: "primary", Namespace: "sink_go_client", Dataset: collection,
-		Encoding: sink.DocumentEncodingBSON, MergeProgram: &program}
+	opts := sink.DatasetOptions{URI: testuri.Resource("primary", []string{"sink_go_client", collection}), Encoding: sink.DocumentEncodingBSON, MergeProgram: &program}
 	dataset, err := sink.NewDataset(client, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
 	key := sink.StringKey("quota")
-	address, err := sink.NewAddress(opts.Store, opts.Namespace, opts.Dataset, key)
+	address, err := sink.NewRecordAddress(opts.URI, key)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +96,7 @@ end`))
 		}
 	}
 	find := bson.D{{Key: "find", Value: collection}, {Key: "filter", Value: bson.D{{Key: "count", Value: 2}}}}
-	command, err = sink.NewBSONCommand(opts.Store, opts.Namespace, find)
+	command, err = sink.NewBSONCommand("primary", "sink_go_client", find)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +159,7 @@ end`))
 		t.Fatalf("Scan projection was ignored: %s", rawScan)
 	}
 	invalid := bson.D{{Key: "count", Value: collection}, {Key: "unknownOption", Value: true}}
-	command, err = sink.NewBSONCommand(opts.Store, opts.Namespace, invalid)
+	command, err = sink.NewBSONCommand("primary", "sink_go_client", invalid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +171,7 @@ end`))
 	}
 	modify := bson.D{{Key: "findAndModify", Value: collection}, {Key: "query", Value: bson.D{{Key: "_id", Value: "quota"}}},
 		{Key: "update", Value: bson.D{{Key: "$inc", Value: bson.D{{Key: "count", Value: 1}}}}}, {Key: "new", Value: true}}
-	command, err = sink.NewBSONCommand(opts.Store, opts.Namespace, modify)
+	command, err = sink.NewBSONCommand("primary", "sink_go_client", modify)
 	if err != nil {
 		t.Fatal(err)
 	}

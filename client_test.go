@@ -13,6 +13,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/liran/sink-go/internal/testuri"
+	"github.com/liran/sink-go/uri"
+
 	sink "github.com/liran/sink-go"
 	sinkv1 "github.com/liran/sink-go/api/sink/v1"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -378,7 +381,7 @@ func startTestClient(
 
 func testAddress(t *testing.T, key sink.Key) sink.Address {
 	t.Helper()
-	address, err := sink.NewAddress("primary", "catalog", "products", key)
+	address, err := sink.NewRecordAddress(testuri.Resource("primary", []string{"catalog", "products"}), key)
 	if err != nil {
 		t.Fatalf("sink.NewAddress() error = %v", err)
 	}
@@ -482,18 +485,18 @@ func TestClientCoversSinkContract(t *testing.T) {
 	writeRequest := server.writeRequest
 	deleteRequest := server.deleteRequest
 	server.mu.Unlock()
-	if _, ok := readRequest.GetOperations()[0].GetAddress().GetKey().GetKind().(*sinkv1.RecordKey_StringValue); !ok {
-		t.Fatalf("first key type = %T", readRequest.GetOperations()[0].GetAddress().GetKey().GetKind())
+	for index, want := range []string{"string", "int64", "bytes", "opaque:mongodb/object-id"} {
+		parsed, err := uri.Parse(readRequest.GetOperations()[index].GetAddress().GetUri())
+		if err != nil {
+			t.Fatal(err)
+		}
+		parts := parsed.Segments()
+		key, err := uri.ParseKey(parts[len(parts)-1])
+		if err != nil || key.Type != want {
+			t.Fatalf("key %d = %v: %v", index, key, err)
+		}
 	}
-	if _, ok := readRequest.GetOperations()[1].GetAddress().GetKey().GetKind().(*sinkv1.RecordKey_Int64Value); !ok {
-		t.Fatalf("second key type = %T", readRequest.GetOperations()[1].GetAddress().GetKey().GetKind())
-	}
-	if _, ok := readRequest.GetOperations()[2].GetAddress().GetKey().GetKind().(*sinkv1.RecordKey_BytesValue); !ok {
-		t.Fatalf("third key type = %T", readRequest.GetOperations()[2].GetAddress().GetKey().GetKind())
-	}
-	if _, ok := readRequest.GetOperations()[3].GetAddress().GetKey().GetKind().(*sinkv1.RecordKey_OpaqueValue); !ok {
-		t.Fatalf("fourth key type = %T", readRequest.GetOperations()[3].GetAddress().GetKey().GetKind())
-	}
+
 	if writeRequest.GetOperations()[0].GetPut() == nil || writeRequest.GetOperations()[1].GetMerge() == nil {
 		t.Fatalf("Write() actions = %T, %T", writeRequest.GetOperations()[0].GetAction(), writeRequest.GetOperations()[1].GetAction())
 	}
@@ -929,7 +932,7 @@ func TestConstructorsValidateAndCopyInput(t *testing.T) {
 	}
 
 	var emptyKey sink.Key
-	_, err = sink.NewAddress("primary", "catalog", "products", emptyKey)
+	_, err = sink.NewRecordAddress(testuri.Resource("primary", []string{"catalog", "products"}), emptyKey)
 	if err == nil {
 		t.Fatal("sink.NewAddress() accepted an empty key")
 	}

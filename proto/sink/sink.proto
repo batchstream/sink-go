@@ -18,30 +18,11 @@ service Sink {
   rpc Scan(ScanRequest) returns (ScanResponse);
 }
 
-// RecordAddress identifies a record without exposing a physical database,
-// collection, table, or primary-key field name.
+// RecordAddress is a canonical sink://<store>/<path> URI. The core treats the
+// path as opaque; each Store adapter owns its path grammar. The full canonical
+// URI is the record identity for routing, batching, and durable delivery.
 message RecordAddress {
-  string store = 1;
-  string namespace = 2;
-  string dataset = 3;
-  RecordKey key = 4;
-}
-
-// RecordKey is encoded deterministically so it can also be used for routing.
-// Opaque keys preserve storage-specific legacy key types without teaching the
-// Sink core how to interpret them.
-message RecordKey {
-  oneof kind {
-    string string_value = 1;
-    int64 int64_value = 2;
-    bytes bytes_value = 3;
-    OpaqueValue opaque_value = 4;
-  }
-}
-
-message OpaqueValue {
-  string type = 1;
-  bytes data = 2;
+  string uri = 1;
 }
 
 // Document contains one explicitly encoded user object. Callers select JSON
@@ -150,11 +131,8 @@ enum WriteMode {
 // expands any program reference before queueing the operation so the worker can
 // merge against the document version it reads at execution time.
 message MergeOperation {
-  reserved 2;
-  reserved "missing_document_mode";
-
   Document incoming_document = 1;
-  LuaProgram lua_program = 3;
+  LuaProgram lua_program = 2;
 }
 
 // LuaProgram is self-contained so merge rules can be versioned and deployed
