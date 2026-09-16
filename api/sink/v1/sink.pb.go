@@ -1479,7 +1479,7 @@ func (x *Failure) GetRetryable() bool {
 
 // Command is shared by Execute, Query, Count and Scan. The canonical URI selects
 // a configured Store; only its adapter interprets the remaining path.
-// MongoDB uses sink://store/database with an ordered BSON command payload.
+// MongoDB uses sink://store/database[/collection] with an ordered BSON payload.
 // HTTP search uses sink://store/index with a separate native operation path,
 // such as /_search, method, query, headers and body. A Store root is
 // spelled sink://store. Endpoints and authentication come from configuration.

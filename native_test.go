@@ -194,6 +194,21 @@ func TestBSONCommandRequiresOrderAndPreservesBSON(t *testing.T) {
 	}
 }
 
+func TestBSONCommandLeavesResourceGrammarToStore(t *testing.T) {
+	value := bson.D{{Key: "operation", Value: ""}}
+	for _, target := range []string{"sink://primary", "sink://primary/catalog", "sink://primary/catalog/products", "sink://primary/tenant/catalog/products"} {
+		command, err := sink.NewBSONCommand(target, value)
+		if err != nil || command.URI != target {
+			t.Fatalf("resource %q: %+v %v", target, command, err)
+		}
+	}
+	for _, target := range []string{"", "http://primary/catalog", "sink://primary/catalog/../products", "sink://primary/"} {
+		if _, err := sink.NewBSONCommand(target, value); err == nil {
+			t.Fatalf("accepted invalid URI %q", target)
+		}
+	}
+}
+
 func TestReturnedDocumentsReachDatasetAndRejectAsync(t *testing.T) {
 	server := &nativeRPCServer{}
 	opts := sink.ClientOptions{}
