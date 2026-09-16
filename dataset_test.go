@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/liran/sink-go/internal/testuri"
+
 	sink "github.com/liran/sink-go"
 	sinkv1 "github.com/liran/sink-go/api/sink/v1"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -27,12 +29,7 @@ func TestNewDatasetValidatesAndCopiesOptions(t *testing.T) {
 	server := &testSinkServer{suppressWriteError: true}
 	var clientOptions sink.ClientOptions
 	client := startTestClient(t, server, clientOptions)
-	validOptions := sink.DatasetOptions{
-		Store:     "search-main",
-		Namespace: "catalog",
-		Dataset:   "products",
-		Encoding:  sink.DocumentEncodingJSON,
-	}
+	validOptions := sink.DatasetOptions{URI: testuri.Resource("search-main", []string{"products"}), Encoding: sink.DocumentEncodingJSON}
 
 	var nilClient *sink.Client
 	_, err := sink.NewDataset(nilClient, validOptions)
@@ -41,11 +38,11 @@ func TestNewDatasetValidatesAndCopiesOptions(t *testing.T) {
 	}
 
 	missingStore := validOptions
-	missingStore.Store = ""
+	missingStore.URI = "sink:///products"
 	missingNamespace := validOptions
-	missingNamespace.Namespace = ""
+	missingNamespace.URI = ""
 	missingDataset := validOptions
-	missingDataset.Dataset = ""
+	missingDataset.URI = "sink://search-main/"
 	missingEncoding := validOptions
 	missingEncoding.Encoding = 0
 	var emptyMergeProgram sink.LuaProgram
@@ -97,12 +94,7 @@ func TestDatasetReadBindsRoutingSplitsBatchesAndPreservesOrder(t *testing.T) {
 	server := &testSinkServer{}
 	clientOptions := sink.ClientOptions{MaxOperations: 2}
 	client := startTestClient(t, server, clientOptions)
-	datasetOptions := sink.DatasetOptions{
-		Store:     "search-main",
-		Namespace: "product-search-engine",
-		Dataset:   "product",
-		Encoding:  sink.DocumentEncodingJSON,
-	}
+	datasetOptions := sink.DatasetOptions{URI: testuri.Resource("search-main", []string{"product"}), Encoding: sink.DocumentEncodingJSON}
 	dataset, err := sink.NewDataset(client, datasetOptions)
 	if err != nil {
 		t.Fatalf("NewDataset() error = %v", err)
@@ -140,8 +132,7 @@ func TestDatasetReadBindsRoutingSplitsBatchesAndPreservesOrder(t *testing.T) {
 		}
 		for _, operation := range request.GetOperations() {
 			address := operation.GetAddress()
-			if address.GetStore() != datasetOptions.Store || address.GetNamespace() != datasetOptions.Namespace ||
-				address.GetDataset() != datasetOptions.Dataset {
+			if !strings.HasPrefix(address.GetUri(), datasetOptions.URI+"/") {
 				t.Fatalf("Dataset.Read() address = %+v", address)
 			}
 		}
@@ -152,12 +143,7 @@ func TestDatasetReadTreatsNotFoundAsSuccess(t *testing.T) {
 	server := &testSinkServer{readNotFound: true}
 	var clientOptions sink.ClientOptions
 	client := startTestClient(t, server, clientOptions)
-	datasetOptions := sink.DatasetOptions{
-		Store:     "search-main",
-		Namespace: "product-search-engine",
-		Dataset:   "product",
-		Encoding:  sink.DocumentEncodingJSON,
-	}
+	datasetOptions := sink.DatasetOptions{URI: testuri.Resource("search-main", []string{"product"}), Encoding: sink.DocumentEncodingJSON}
 	dataset, err := sink.NewDataset(client, datasetOptions)
 	if err != nil {
 		t.Fatalf("NewDataset() error = %v", err)
@@ -181,12 +167,7 @@ func TestDatasetReadCollectsFailuresAfterRetries(t *testing.T) {
 	}
 	clientOptions := sink.ClientOptions{ReadRetry: retry}
 	client := startTestClient(t, server, clientOptions)
-	datasetOptions := sink.DatasetOptions{
-		Store:     "search-main",
-		Namespace: "product-search-engine",
-		Dataset:   "product",
-		Encoding:  sink.DocumentEncodingJSON,
-	}
+	datasetOptions := sink.DatasetOptions{URI: testuri.Resource("search-main", []string{"product"}), Encoding: sink.DocumentEncodingJSON}
 	dataset, err := sink.NewDataset(client, datasetOptions)
 	if err != nil {
 		t.Fatalf("NewDataset() error = %v", err)
@@ -220,12 +201,7 @@ func TestDatasetReadReturnsPartialResultsOnTransportFailure(t *testing.T) {
 	}
 	clientOptions := sink.ClientOptions{MaxOperations: 2, ReadRetry: retry}
 	client := startTestClient(t, server, clientOptions)
-	datasetOptions := sink.DatasetOptions{
-		Store:     "search-main",
-		Namespace: "product-search-engine",
-		Dataset:   "product",
-		Encoding:  sink.DocumentEncodingJSON,
-	}
+	datasetOptions := sink.DatasetOptions{URI: testuri.Resource("search-main", []string{"product"}), Encoding: sink.DocumentEncodingJSON}
 	dataset, err := sink.NewDataset(client, datasetOptions)
 	if err != nil {
 		t.Fatalf("NewDataset() error = %v", err)
@@ -253,12 +229,7 @@ func TestDatasetReadRejectsInvalidKeysBeforeRPC(t *testing.T) {
 	server := &testSinkServer{}
 	var clientOptions sink.ClientOptions
 	client := startTestClient(t, server, clientOptions)
-	datasetOptions := sink.DatasetOptions{
-		Store:     "search-main",
-		Namespace: "product-search-engine",
-		Dataset:   "product",
-		Encoding:  sink.DocumentEncodingJSON,
-	}
+	datasetOptions := sink.DatasetOptions{URI: testuri.Resource("search-main", []string{"product"}), Encoding: sink.DocumentEncodingJSON}
 	dataset, err := sink.NewDataset(client, datasetOptions)
 	if err != nil {
 		t.Fatalf("NewDataset() error = %v", err)
@@ -278,12 +249,7 @@ func TestDatasetPutMethodsBindRoutingEncodingAndPerCallCompletion(t *testing.T) 
 	server := &testSinkServer{suppressWriteError: true}
 	var clientOptions sink.ClientOptions
 	client := startTestClient(t, server, clientOptions)
-	datasetOptions := sink.DatasetOptions{
-		Store:     "search-main",
-		Namespace: "product-search-engine",
-		Dataset:   "product",
-		Encoding:  sink.DocumentEncodingJSON,
-	}
+	datasetOptions := sink.DatasetOptions{URI: testuri.Resource("search-main", []string{"product"}), Encoding: sink.DocumentEncodingJSON}
 	dataset, err := sink.NewDataset(client, datasetOptions)
 	if err != nil {
 		t.Fatalf("NewDataset() error = %v", err)
@@ -356,8 +322,7 @@ func TestDatasetPutMethodsBindRoutingEncodingAndPerCallCompletion(t *testing.T) 
 		}
 		operation := request.GetOperations()[0]
 		address := operation.GetAddress()
-		if address.GetStore() != datasetOptions.Store || address.GetNamespace() != datasetOptions.Namespace ||
-			address.GetDataset() != datasetOptions.Dataset || address.GetKey().GetStringValue() != method.key {
+		if address.GetUri() != datasetOptions.URI+"/s:"+method.key {
 			t.Fatalf("Dataset.%s() address = %+v", method.name, address)
 		}
 		put := operation.GetPut()
@@ -381,12 +346,7 @@ func TestDatasetUsesConfiguredBSONEncoding(t *testing.T) {
 	server := &testSinkServer{suppressWriteError: true}
 	var clientOptions sink.ClientOptions
 	client := startTestClient(t, server, clientOptions)
-	datasetOptions := sink.DatasetOptions{
-		Store:     "mongo-main",
-		Namespace: "catalog",
-		Dataset:   "products",
-		Encoding:  sink.DocumentEncodingBSON,
-	}
+	datasetOptions := sink.DatasetOptions{URI: testuri.Resource("mongo-main", []string{"catalog", "products"}), Encoding: sink.DocumentEncodingBSON}
 	dataset, err := sink.NewDataset(client, datasetOptions)
 	if err != nil {
 		t.Fatalf("NewDataset() error = %v", err)
@@ -419,13 +379,7 @@ func TestDatasetMergeUsesOneBoundProgramForBatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewLuaProgram() error = %v", err)
 	}
-	datasetOptions := sink.DatasetOptions{
-		Store:        "search-main",
-		Namespace:    "product-search-engine",
-		Dataset:      "product",
-		Encoding:     sink.DocumentEncodingJSON,
-		MergeProgram: &program,
-	}
+	datasetOptions := sink.DatasetOptions{URI: testuri.Resource("search-main", []string{"product"}), Encoding: sink.DocumentEncodingJSON, MergeProgram: &program}
 	dataset, err := sink.NewDataset(client, datasetOptions)
 	if err != nil {
 		t.Fatalf("NewDataset() error = %v", err)
@@ -465,7 +419,7 @@ func TestDatasetMergeUsesOneBoundProgramForBatch(t *testing.T) {
 		if merge == nil {
 			t.Fatalf("Dataset.Merge() operation %d = %+v", index, operation)
 		}
-		if got := merge.ProtoReflect().GetUnknown(); !bytes.Equal(got, []byte{0x10, 0x02}) {
+		if got := merge.ProtoReflect().GetUnknown(); len(got) != 0 {
 			t.Fatalf("Dataset.Merge() legacy compatibility field %d = %x", index, got)
 		}
 		if len(merge.GetLuaProgram().GetSource()) != 0 ||
@@ -494,12 +448,7 @@ func TestDatasetUpsertSplitsBatchesAndCollectsOperationFailures(t *testing.T) {
 	server := &testSinkServer{}
 	clientOptions := sink.ClientOptions{MaxOperations: 2}
 	client := startTestClient(t, server, clientOptions)
-	datasetOptions := sink.DatasetOptions{
-		Store:     "search-main",
-		Namespace: "product-search-engine",
-		Dataset:   "product",
-		Encoding:  sink.DocumentEncodingJSON,
-	}
+	datasetOptions := sink.DatasetOptions{URI: testuri.Resource("search-main", []string{"product"}), Encoding: sink.DocumentEncodingJSON}
 	dataset, err := sink.NewDataset(client, datasetOptions)
 	if err != nil {
 		t.Fatalf("NewDataset() error = %v", err)
@@ -549,12 +498,7 @@ func TestDatasetUpsertReturnsPartialResultsOnTransportFailure(t *testing.T) {
 	server := &testSinkServer{writeFailureAt: 2}
 	clientOptions := sink.ClientOptions{MaxOperations: 2}
 	client := startTestClient(t, server, clientOptions)
-	datasetOptions := sink.DatasetOptions{
-		Store:     "search-main",
-		Namespace: "product-search-engine",
-		Dataset:   "product",
-		Encoding:  sink.DocumentEncodingJSON,
-	}
+	datasetOptions := sink.DatasetOptions{URI: testuri.Resource("search-main", []string{"product"}), Encoding: sink.DocumentEncodingJSON}
 	dataset, err := sink.NewDataset(client, datasetOptions)
 	if err != nil {
 		t.Fatalf("NewDataset() error = %v", err)
@@ -586,12 +530,7 @@ func TestDatasetRejectsInvalidRecordsBeforeWrite(t *testing.T) {
 	server := &testSinkServer{suppressWriteError: true}
 	var clientOptions sink.ClientOptions
 	client := startTestClient(t, server, clientOptions)
-	datasetOptions := sink.DatasetOptions{
-		Store:     "search-main",
-		Namespace: "product-search-engine",
-		Dataset:   "product",
-		Encoding:  sink.DocumentEncodingJSON,
-	}
+	datasetOptions := sink.DatasetOptions{URI: testuri.Resource("search-main", []string{"product"}), Encoding: sink.DocumentEncodingJSON}
 	dataset, err := sink.NewDataset(client, datasetOptions)
 	if err != nil {
 		t.Fatalf("NewDataset() error = %v", err)

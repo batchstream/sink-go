@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"github.com/liran/sink-go/uri"
 )
 
 // DatasetOptions binds the stable routing, encoding, and optional merge
@@ -11,9 +13,7 @@ import (
 // per-call choice because callers of the same dataset can require different
 // durability and visibility guarantees.
 type DatasetOptions struct {
-	Store        string
-	Namespace    string
-	Dataset      string
+	URI          string
 	Encoding     DocumentEncoding
 	MergeProgram *LuaProgram
 }
@@ -32,9 +32,7 @@ type Record struct {
 // operation fails; native methods retain the corresponding Client semantics.
 type Dataset struct {
 	client          *Client
-	store           string
-	namespace       string
-	dataset         string
+	resource        uri.Address
 	encoding        DocumentEncoding
 	mergeProgram    LuaProgram
 	hasMergeProgram bool
@@ -46,24 +44,17 @@ func NewDataset(client *Client, opts DatasetOptions) (*Dataset, error) {
 	if client == nil || client.rpc == nil {
 		return nil, errors.New("create dataset: client is required")
 	}
-	if opts.Store == "" {
-		return nil, errors.New("create dataset: store is required")
-	}
-	if opts.Namespace == "" {
-		return nil, errors.New("create dataset: namespace is required")
-	}
-	if opts.Dataset == "" {
-		return nil, errors.New("create dataset: dataset is required")
+	resource, err := uri.Parse(opts.URI)
+	if err != nil {
+		return nil, fmt.Errorf("create dataset: %w", err)
 	}
 	if opts.Encoding != DocumentEncodingJSON && opts.Encoding != DocumentEncodingBSON {
 		return nil, errors.New("create dataset: document encoding is required")
 	}
 	dataset := &Dataset{
-		client:    client,
-		store:     opts.Store,
-		namespace: opts.Namespace,
-		dataset:   opts.Dataset,
-		encoding:  opts.Encoding,
+		client:   client,
+		resource: resource,
+		encoding: opts.Encoding,
 	}
 	if opts.MergeProgram != nil {
 		if err := opts.MergeProgram.validate(); err != nil {
@@ -235,7 +226,7 @@ func (d *Dataset) encodeRecord(record Record) (Address, Document, error) {
 }
 
 func (d *Dataset) address(key Key) (Address, error) {
-	return NewAddress(d.store, d.namespace, d.dataset, key)
+	return NewRecordAddress(d.resource.String(), key)
 }
 
 func (d *Dataset) write(

@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/liran/sink-go/internal/testuri"
+
 	sink "github.com/liran/sink-go"
 	sinkv1 "github.com/liran/sink-go/api/sink/v1"
 	"golang.org/x/net/dns/dnsmessage"
@@ -77,7 +79,7 @@ func testDNSScaleChanges(t *testing.T, opts sink.DialOptions) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = client.Close() })
-	datasetOptions := sink.DatasetOptions{Store: "primary", Namespace: "test", Dataset: "dns-balance", Encoding: sink.DocumentEncodingJSON}
+	datasetOptions := sink.DatasetOptions{URI: testuri.Resource("primary", []string{"dns-balance"}), Encoding: sink.DocumentEncodingJSON}
 	dataset, err := sink.NewDataset(client, datasetOptions)
 	if err != nil {
 		t.Fatal(err)

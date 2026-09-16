@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/liran/sink-go/internal/testuri"
+
 	sink "github.com/liran/sink-go"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -60,13 +62,7 @@ func TestSinkCompatibility(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sink.NewLuaProgram() error = %v", err)
 	}
-	datasetOptions := sink.DatasetOptions{
-		Store:        "primary",
-		Namespace:    "sink_go_client",
-		Dataset:      "compatibility",
-		Encoding:     sink.DocumentEncodingBSON,
-		MergeProgram: &program,
-	}
+	datasetOptions := sink.DatasetOptions{URI: testuri.Resource("primary", []string{"sink_go_client", "compatibility"}), Encoding: sink.DocumentEncodingBSON, MergeProgram: &program}
 	dataset, err := sink.NewDataset(client, datasetOptions)
 	if err != nil {
 		t.Fatalf("sink.NewDataset() error = %v", err)
@@ -145,7 +141,7 @@ func TestSinkCompatibility(t *testing.T) {
 
 func integrationAddress(t *testing.T, key string) sink.Address {
 	t.Helper()
-	address, err := sink.NewAddress("primary", "sink_go_client", "compatibility", sink.StringKey(key))
+	address, err := sink.NewRecordAddress(testuri.Resource("primary", []string{"sink_go_client", "compatibility"}), sink.StringKey(key))
 	if err != nil {
 		t.Fatalf("sink.NewAddress() error = %v", err)
 	}

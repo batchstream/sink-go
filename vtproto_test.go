@@ -3,6 +3,9 @@ package sink
 import (
 	"testing"
 
+	"github.com/liran/sink-go/internal/testuri"
+	"github.com/liran/sink-go/uri"
+
 	sinkv1 "github.com/liran/sink-go/api/sink/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/encoding"
@@ -65,7 +68,7 @@ func TestVTProtoCodecRoundTrip(t *testing.T) {
 		t.Fatalf("Unmarshal() error = %v", err)
 	}
 	address := decoded.GetOperations()[0].GetAddress()
-	if address.GetStore() != "primary" || address.GetKey().GetStringValue() != "sku-1" {
+	if address.GetUri() != "sink://primary/catalog/products/s:sku-1" {
 		t.Fatalf("round-trip address = %+v", address)
 	}
 }
@@ -117,14 +120,7 @@ func testVTProtoRequest() *sinkv1.ReadRequest {
 	request := &sinkv1.ReadRequest{
 		Operations: []*sinkv1.ReadOperation{
 			{
-				Address: &sinkv1.RecordAddress{
-					Store:     "primary",
-					Namespace: "catalog",
-					Dataset:   "products",
-					Key: &sinkv1.RecordKey{
-						Kind: &sinkv1.RecordKey_StringValue{StringValue: "sku-1"},
-					},
-				},
+				Address: &sinkv1.RecordAddress{Uri: testuri.Record("primary", []string{"catalog", "products"}, uri.StringKey("sku-1"))},
 			},
 		},
 	}

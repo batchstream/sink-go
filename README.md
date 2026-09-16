@@ -15,6 +15,35 @@ go get github.com/liran/sink-go
 
 The client requires Go 1.27 or newer.
 
+## Record addresses
+
+Record addresses are canonical `sink://<store>/<store-defined-path>` URIs.
+`NewAddress` parses a complete URI; `NewRecordAddress` appends a typed key to a
+resource URI. `DatasetOptions.URI` is the resource URI without its final key.
+
+```go
+address, err := sink.NewAddress("sink://primary/catalog/products/s:product-42")
+address, err = sink.NewRecordAddress("sink://search-main/products", sink.StringKey("product/42"))
+```
+
+MongoDB paths are `database/collection/typed-key`; search paths are
+`index/typed-key`. The Gateway treats the path as opaque and uses the full
+canonical URI for Engine affinity. All Gateways with the same Engine membership
+select the same Engine for a record. Membership changes may temporarily split
+traffic. No exclusive ownership or cross-replica ordering is promised.
+
+The shared `github.com/liran/sink-go/uri` package builds, parses and validates
+URIs. String keys use `s:`, int64 keys `i:`, bytes keys `b:` plus unpadded base64url,
+and opaque keys `o:<base64url type>:<base64url data>`. The builder escapes each
+path segment; encoded slashes are part of a segment. Alternate URI spellings,
+empty/dot segments, invalid UTF-8 and noncanonical typed keys are rejected.
+Store names are lowercase ASCII letters/digits with `.`, `_` and `-` after the
+first character. The entire URI is at most 16 KiB.
+
+Deploy this SDK with the matching URI-protocol Sink build in a new cluster.
+There is no old address constructor or mixed-version wire compatibility field.
+Native `Command` fields remain backend-specific and do not use record affinity.
+
 ## Quick start
 
 `Dial` uses TLS 1.2 or newer by default. The explicit insecure credentials in
@@ -50,9 +79,7 @@ func main() {
 	defer client.Close()
 
 	datasetOptions := sink.DatasetOptions{
-		Store:     "primary",
-		Namespace: "catalog",
-		Dataset:   "products",
+		URI:       "sink://primary/catalog/products",
 		Encoding:  sink.DocumentEncodingBSON,
 	}
 	products, err := sink.NewDataset(client, datasetOptions)
@@ -137,9 +164,7 @@ if err != nil {
 	log.Fatal(err)
 }
 datasetOptions := sink.DatasetOptions{
-	Store:        "search-main",
-	Namespace:    "catalog",
-	Dataset:      "products",
+	URI:          "sink://search-main/products",
 	Encoding:     sink.DocumentEncodingJSON,
 	MergeProgram: &program,
 }
@@ -189,7 +214,7 @@ for the complete function reference and reliability rules.
   are rejected.
 - `Scan(ctx, request)` returns one live page of MongoDB documents or complete
   search hits, with an opaque `NextCursor` for resuming on any server.
-- String, int64, byte, and opaque legacy keys are supported.
+- String, int64, byte, and opaque keys are supported.
 - `CheckHealth` uses the standard gRPC health service.
 - `Raw` exposes the generated `api/sink/v1` client for advanced use.
 
@@ -367,15 +392,14 @@ and the SDK retries neither operation.
 
 `Dataset` also exposes `Execute`, `Query`, `Count` and `Scan` using the same request
 and response types as Client. Store is bound automatically. BSON datasets bind the
-database and collection; JSON datasets bind the index (the logical Namespace is
-unused by HTTP search). Empty Query/Count commands select all records in the
+database and collection from their URI; JSON datasets bind the index from their URI. Empty Query/Count commands select all records in the
 Dataset. MongoDB Scan also accepts an empty Command; JSON Scan needs a body with
 an explicit stable sort. Conflicting stores, namespaces or BSON collection targets fail.
 The Dataset wrappers retain native error, retry and cursor semantics.
 
 ```go
 opts := sink.DatasetOptions{
- Store: "primary", Namespace: "catalog", Dataset: "products",
+ URI: "sink://primary/catalog/products",
  Encoding: sink.DocumentEncodingBSON,
 }
 products, err := sink.NewDataset(client, opts)

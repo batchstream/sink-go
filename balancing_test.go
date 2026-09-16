@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/liran/sink-go/internal/testuri"
+
 	sink "github.com/liran/sink-go"
 	sinkv1 "github.com/liran/sink-go/api/sink/v1"
 	"google.golang.org/grpc"
@@ -45,7 +47,7 @@ func TestDialBalancesWritesAndFollowsEndpointChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = client.Close() })
-	datasetOptions := sink.DatasetOptions{Store: "primary", Namespace: "test", Dataset: "balance", Encoding: sink.DocumentEncodingJSON}
+	datasetOptions := sink.DatasetOptions{URI: testuri.Resource("primary", []string{"balance"}), Encoding: sink.DocumentEncodingJSON}
 	dataset, err := sink.NewDataset(client, datasetOptions)
 	if err != nil {
 		t.Fatal(err)

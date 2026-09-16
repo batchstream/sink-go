@@ -23,7 +23,11 @@ func (d *Dataset) NewBSONCommand(operation string, arguments any) (Command, erro
 	if d.encoding != DocumentEncodingBSON || strings.TrimSpace(operation) == "" {
 		return empty, errors.New("dataset BSON command requires BSON encoding and an operation")
 	}
-	command := bson.D{{Key: operation, Value: d.dataset}}
+	namespace, dataset, err := d.nativeScope()
+	if err != nil {
+		return empty, err
+	}
+	command := bson.D{{Key: operation, Value: dataset}}
 	if arguments != nil {
 		payload, err := bson.Marshal(arguments)
 		if err != nil {
@@ -42,7 +46,7 @@ func (d *Dataset) NewBSONCommand(operation string, arguments any) (Command, erro
 		}
 		command = append(command, fields...)
 	}
-	return NewBSONCommand(d.store, d.namespace, command)
+	return NewBSONCommand(d.resource.Store(), namespace, command)
 }
 
 // Execute binds a native command to this Dataset. For BSON the first field must
@@ -101,15 +105,19 @@ func (d *Dataset) bindNativeCommand(command Command, query bool) (Command, error
 	if err := d.validate("native command"); err != nil {
 		return empty, err
 	}
-	if command.Store != "" && command.Store != d.store {
+	namespace, dataset, err := d.nativeScope()
+	if err != nil {
+		return empty, err
+	}
+	if command.Store != "" && command.Store != d.resource.Store() {
 		return empty, errors.New("native command store differs from Dataset")
 	}
-	if command.Namespace != "" && command.Namespace != d.namespace {
+	if command.Namespace != "" && command.Namespace != namespace {
 		return empty, errors.New("native command namespace differs from Dataset")
 	}
-	command.Store = d.store
+	command.Store = d.resource.Store()
 	if d.encoding == DocumentEncodingBSON {
-		command.Namespace = d.namespace
+		command.Namespace = namespace
 		if command.ContentType == "" {
 			command.ContentType = "application/bson"
 		}
@@ -118,7 +126,7 @@ func (d *Dataset) bindNativeCommand(command Command, query bool) (Command, error
 			return empty, errors.New("BSON Dataset requires application/bson commands")
 		}
 		if len(command.Payload) == 0 && query {
-			find := bson.D{{Key: "find", Value: d.dataset}}
+			find := bson.D{{Key: "find", Value: dataset}}
 			command.Payload, err = bson.Marshal(find)
 			if err != nil {
 				return empty, err
@@ -132,11 +140,11 @@ func (d *Dataset) bindNativeCommand(command Command, query bool) (Command, error
 			return empty, errors.New("dataset command is empty")
 		}
 		collection, ok := document[0].Value.(string)
-		if !ok || (collection != "" && collection != d.dataset) {
+		if !ok || (collection != "" && collection != dataset) {
 			return empty, errors.New("native command must target the Dataset collection; use Client for other scopes")
 		}
 		if collection == "" {
-			document[0].Value = d.dataset
+			document[0].Value = dataset
 			command.Payload, err = bson.Marshal(document)
 			if err != nil {
 				return empty, err
@@ -144,7 +152,7 @@ func (d *Dataset) bindNativeCommand(command Command, query bool) (Command, error
 		}
 		return command, nil
 	}
-	// Search record routing uses Dataset as the index; Namespace is logical only.
+	// Search resource URIs contain one index segment.
 	command.Namespace = ""
 	if command.ContentType == "" && len(command.Payload) > 0 {
 		command.ContentType = "application/json"
@@ -168,6 +176,22 @@ func (d *Dataset) bindNativeCommand(command Command, query bool) (Command, error
 			}
 		}
 	}
-	command.Path = "/" + url.PathEscape(d.dataset) + command.Path
+	command.Path = "/" + url.PathEscape(dataset) + command.Path
 	return command, nil
+}
+
+// Native helpers deliberately interpret the built-in adapters' resource grammars.
+// Generic record addressing never infers path meaning from document encoding.
+func (d *Dataset) nativeScope() (string, string, error) {
+	segments := d.resource.Segments()
+	if d.encoding == DocumentEncodingBSON {
+		if len(segments) != 2 {
+			return "", "", errors.New("MongoDB native resource URI requires database/collection")
+		}
+		return segments[0], segments[1], nil
+	}
+	if len(segments) != 1 {
+		return "", "", errors.New("search native resource URI requires one index segment")
+	}
+	return "", segments[0], nil
 }
