@@ -40,7 +40,7 @@ func ValidStore(value string) bool {
 func Parse(value string) (Address, error) {
 	var empty Address
 	if len(value) > MaxAddressBytes {
-		return empty, errors.New("Sink URI exceeds 16 KiB")
+		return empty, errors.New("sink URI exceeds 16 KiB")
 	}
 	remainder, ok := strings.CutPrefix(value, "sink://")
 	if !ok {
@@ -48,10 +48,10 @@ func Parse(value string) (Address, error) {
 	}
 	store, path, found := strings.Cut(remainder, "/")
 	if !ValidStore(store) {
-		return empty, errors.New("Store must use lowercase ASCII letters, digits, dots, underscores or hyphens")
+		return empty, errors.New("store must use lowercase ASCII letters, digits, dots, underscores or hyphens")
 	}
 	if !found || path == "" {
-		return empty, errors.New("Sink URI requires a path")
+		return empty, errors.New("sink URI requires a path")
 	}
 	encoded := strings.Split(path, "/")
 	segments := make([]string, len(encoded))
@@ -64,7 +64,7 @@ func Parse(value string) (Address, error) {
 			return empty, errors.New("URI segments must be nonempty UTF-8 and cannot be dot segments")
 		}
 		if url.PathEscape(decoded) != part {
-			return empty, errors.New("Sink URI is not canonical; construct it with the URI builder")
+			return empty, errors.New("sink URI is not canonical; construct it with the URI builder")
 		}
 		segments[i] = decoded
 	}
