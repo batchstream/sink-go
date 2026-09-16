@@ -137,6 +137,9 @@ type Address struct{ value uri.Address }
 
 func NewAddress(value string) (Address, error) {
 	parsed, err := uri.Parse(value)
+	if err == nil && len(parsed.Segments()) == 0 {
+		err = errors.New("record URI requires a resource path")
+	}
 	address := Address{value: parsed}
 	return address, err
 }
@@ -157,7 +160,7 @@ func NewRecordAddress(resource string, key Key) (Address, error) {
 
 func (a Address) Store() string   { return a.value.Store() }
 func (a Address) URI() string     { return a.value.String() }
-func (a Address) validate() error { _, err := uri.Parse(a.URI()); return err }
+func (a Address) validate() error { _, err := NewAddress(a.URI()); return err }
 
 func (k Key) uriKey() uri.Key {
 	key := uri.Key{}

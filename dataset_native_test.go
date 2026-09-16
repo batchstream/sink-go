@@ -53,7 +53,7 @@ func TestDatasetNativeMethodsBindScopeAndRetainControls(t *testing.T) {
 			}
 			captured := <-server.queries
 			assertDatasetNativeScope(t, captured.Command, encoding)
-			if captured.Page != 3 || captured.PageSize != 1 || !captured.Sort[0].Descending || captured.Projection.Fields[0] != "name" || query.Command.Store != "" || len(query.Command.Payload) != 0 {
+			if captured.Page != 3 || captured.PageSize != 1 || !captured.Sort[0].Descending || captured.Projection.Fields[0] != "name" || query.Command.URI != "" || len(query.Command.Payload) != 0 {
 				t.Fatalf("query controls or caller request changed: %v %+v", captured, query)
 			}
 			count := sink.CountRequest{}
@@ -84,10 +84,10 @@ func TestDatasetNativeMethodsBindScopeAndRetainControls(t *testing.T) {
 				t.Fatalf("execute=%+v err=%v", result, err)
 			}
 			executed := (<-server.executes).Command
-			if executed.Store != "primary" || !bytes.Equal(executed.Payload, command.Payload) {
+			if executed.Uri != "sink://primary/products" && executed.Uri != "sink://primary/catalog" || !bytes.Equal(executed.Payload, command.Payload) {
 				t.Fatalf("execute lost command: %v", executed)
 			}
-			if encoding == sink.DocumentEncodingJSON && (executed.Path != "/products/_mapping" || executed.Query != command.Query || executed.ContentType != "application/json" || len(executed.Headers) != 1 || command.Path != "/_mapping") {
+			if encoding == sink.DocumentEncodingJSON && (executed.Path != "/_mapping" || executed.Query != command.Query || executed.ContentType != "application/json" || len(executed.Headers) != 1 || command.Path != "/_mapping") {
 				t.Fatalf("HTTP scope or controls lost: %v", executed)
 			}
 			if encoding == sink.DocumentEncodingBSON && (bson.Raw(executed.Payload).Lookup("createIndexes").StringValue() != "products" || bson.Raw(executed.Payload).Lookup("comment").Type != bson.TypeDateTime) {
@@ -99,14 +99,14 @@ func TestDatasetNativeMethodsBindScopeAndRetainControls(t *testing.T) {
 
 func assertDatasetNativeScope(t *testing.T, command *sinkv1.Command, encoding sink.DocumentEncoding) {
 	t.Helper()
-	if command.Store != "primary" {
+	if command.Uri != "sink://primary/products" && command.Uri != "sink://primary/catalog" {
 		t.Fatalf("store lost: %v", command)
 	}
 	if encoding == sink.DocumentEncodingBSON {
-		if command.Namespace != "catalog" || command.ContentType != "application/bson" || bson.Raw(command.Payload).Lookup("find").StringValue() != "products" {
+		if command.Uri != "sink://primary/catalog" || command.ContentType != "application/bson" || bson.Raw(command.Payload).Lookup("find").StringValue() != "products" {
 			t.Fatalf("BSON scope lost: %v", command)
 		}
-	} else if command.Namespace != "" || command.Method != "POST" || command.Path != "/products/_search" {
+	} else if command.Uri != "sink://primary/products" || command.Method != "POST" || command.Path != "/_search" {
 		t.Fatalf("search scope lost: %v", command)
 	}
 }
@@ -121,7 +121,7 @@ func TestDatasetNativeRejectsScopeConflictsAndInvalidCommands(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		commands := []sink.Command{{Store: "other"}, {Namespace: "other"}}
+		commands := []sink.Command{{URI: "sink://other"}, {URI: "sink://primary/other"}}
 		if encoding == sink.DocumentEncodingBSON {
 			other := bson.D{{Key: "find", Value: "other"}}
 			payload, err := bson.Marshal(other)

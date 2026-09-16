@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/liran/sink-go/uri"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -23,7 +24,7 @@ func (d *Dataset) NewBSONCommand(operation string, arguments any) (Command, erro
 	if d.encoding != DocumentEncodingBSON || strings.TrimSpace(operation) == "" {
 		return empty, errors.New("dataset BSON command requires BSON encoding and an operation")
 	}
-	namespace, dataset, err := d.nativeScope()
+	database, dataset, err := d.nativeScope()
 	if err != nil {
 		return empty, err
 	}
@@ -46,7 +47,11 @@ func (d *Dataset) NewBSONCommand(operation string, arguments any) (Command, erro
 		}
 		command = append(command, fields...)
 	}
-	return NewBSONCommand(d.resource.Store(), namespace, command)
+	target, err := uri.New(d.resource.Store(), []string{database})
+	if err != nil {
+		return empty, err
+	}
+	return NewBSONCommand(target.String(), command)
 }
 
 // Execute binds a native command to this Dataset. For BSON the first field must
@@ -105,19 +110,22 @@ func (d *Dataset) bindNativeCommand(command Command, query bool) (Command, error
 	if err := d.validate("native command"); err != nil {
 		return empty, err
 	}
-	namespace, dataset, err := d.nativeScope()
+	database, dataset, err := d.nativeScope()
 	if err != nil {
 		return empty, err
 	}
-	if command.Store != "" && command.Store != d.resource.Store() {
-		return empty, errors.New("native command store differs from Dataset")
-	}
-	if command.Namespace != "" && command.Namespace != namespace {
-		return empty, errors.New("native command namespace differs from Dataset")
-	}
-	command.Store = d.resource.Store()
+	target := d.resource
 	if d.encoding == DocumentEncodingBSON {
-		command.Namespace = namespace
+		target, err = uri.New(d.resource.Store(), []string{database})
+		if err != nil {
+			return empty, err
+		}
+	}
+	if command.URI != "" && command.URI != target.String() {
+		return empty, errors.New("native command URI differs from Dataset resource")
+	}
+	command.URI = target.String()
+	if d.encoding == DocumentEncodingBSON {
 		if command.ContentType == "" {
 			command.ContentType = "application/bson"
 		}
@@ -153,7 +161,6 @@ func (d *Dataset) bindNativeCommand(command Command, query bool) (Command, error
 		return command, nil
 	}
 	// Search resource URIs contain one index segment.
-	command.Namespace = ""
 	if command.ContentType == "" && len(command.Payload) > 0 {
 		command.ContentType = "application/json"
 	}
@@ -176,7 +183,6 @@ func (d *Dataset) bindNativeCommand(command Command, query bool) (Command, error
 			}
 		}
 	}
-	command.Path = "/" + url.PathEscape(dataset) + command.Path
 	return command, nil
 }
 

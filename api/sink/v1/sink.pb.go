@@ -7,12 +7,11 @@
 package sinkv1
 
 import (
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
-
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -1478,45 +1477,29 @@ func (x *Failure) GetRetryable() bool {
 	return false
 }
 
-// Command is the common input for Execute, Query, Count and Scan. Store configuration selects
-// the adapter, which reads and validates the fields it needs. There is no
-// backend-specific message branch or additional Sink envelope inside payload.
-// Fields not used by an adapter must be empty.
-//
-// Current adapter mappings:
-//   - MongoDB: store, namespace, content_type and payload. Namespace is the
-//     database; payload is the complete ordered BSON command document, including
-//     the command name and collection when applicable. Use application/bson.
-//   - HTTP search: store, method, path, query, headers, content_type and payload.
-//     Payload is the original request body, such as JSON or NDJSON. Namespace is
-//     unused; resource selection is already expressed by path and the native body.
-//
-// These are native operations: payload retains the selected backend's syntax.
-// SDK helpers can serialize native values directly into payload without callers
-// constructing a separate Sink-specific command envelope.
+// Command is shared by Execute, Query, Count and Scan. The canonical URI selects
+// a configured Store; only its adapter interprets the remaining path.
+// MongoDB uses sink://store/database with an ordered BSON command payload.
+// HTTP search uses sink://store/index with a separate native operation path,
+// such as /_search, method, query, headers and body. A Store root is
+// spelled sink://store. Endpoints and authentication come from configuration.
 type Command struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Required logical store. Endpoints and credentials come from server config.
-	Store string `protobuf:"bytes,1,opt,name=store,proto3" json:"store,omitempty"`
-	// Execution scope, such as a database name, when the adapter requires one.
-	Namespace string `protobuf:"bytes,2,opt,name=namespace,proto3" json:"namespace,omitempty"`
-	// Request method, such as GET or POST, when the adapter uses request methods.
-	Method string `protobuf:"bytes,3,opt,name=method,proto3" json:"method,omitempty"`
-	// Absolute path within the configured endpoint, never a URL. No host, query,
-	// fragment or traversal segments; escaped resource IDs are supported.
-	Path string `protobuf:"bytes,4,opt,name=path,proto3" json:"path,omitempty"`
+	Uri   string                 `protobuf:"bytes,1,opt,name=uri,proto3" json:"uri,omitempty"`
+	// Native request method, such as GET or POST. Unused by MongoDB.
+	Method string `protobuf:"bytes,2,opt,name=method,proto3" json:"method,omitempty"`
+	// Operation path relative to the URI resource, e.g. /_search or /_mapping.
+	// Unused by MongoDB; its operation is carried by the BSON command.
+	Path string `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`
 	// URL-encoded query parameters without a leading '?'; repeated keys are valid.
-	Query string `protobuf:"bytes,5,opt,name=query,proto3" json:"query,omitempty"`
-	// Repeated values are preserved. Authentication and transport-owned headers
-	// remain server-controlled. Set Content-Type using content_type, not headers.
-	Headers []*Header `protobuf:"bytes,6,rep,name=headers,proto3" json:"headers,omitempty"`
-	// Payload media type, e.g. application/bson, application/json or
-	// application/x-ndjson. Required when payload is nonempty. This describes the
-	// native encoding, not a separately versioned Sink payload schema.
-	ContentType string `protobuf:"bytes,7,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
-	// Original command document or request body bytes. Keep native scalar types,
-	// field order and bulk framing intact; no custom protobuf value wrappers.
-	Payload       []byte `protobuf:"bytes,8,opt,name=payload,proto3" json:"payload,omitempty"`
+	Query string `protobuf:"bytes,4,opt,name=query,proto3" json:"query,omitempty"`
+	// Authentication and transport-owned headers remain server-controlled.
+	// Set Content-Type using content_type, not headers.
+	Headers []*Header `protobuf:"bytes,5,rep,name=headers,proto3" json:"headers,omitempty"`
+	// Payload media type. Required when payload is nonempty.
+	ContentType string `protobuf:"bytes,6,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
+	// Original ordered command or request body, without a Sink-specific envelope.
+	Payload       []byte `protobuf:"bytes,7,opt,name=payload,proto3" json:"payload,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1551,16 +1534,9 @@ func (*Command) Descriptor() ([]byte, []int) {
 	return file_sink_sink_proto_rawDescGZIP(), []int{19}
 }
 
-func (x *Command) GetStore() string {
+func (x *Command) GetUri() string {
 	if x != nil {
-		return x.Store
-	}
-	return ""
-}
-
-func (x *Command) GetNamespace() string {
-	if x != nil {
-		return x.Namespace
+		return x.Uri
 	}
 	return ""
 }
@@ -2366,16 +2342,15 @@ const file_sink_sink_proto_rawDesc = "" +
 	"\aFailure\x12(\n" +
 	"\x04code\x18\x01 \x01(\x0e2\x14.sink.v1.FailureCodeR\x04code\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x1c\n" +
-	"\tretryable\x18\x03 \x01(\bR\tretryable\"\xe7\x01\n" +
-	"\aCommand\x12\x14\n" +
-	"\x05store\x18\x01 \x01(\tR\x05store\x12\x1c\n" +
-	"\tnamespace\x18\x02 \x01(\tR\tnamespace\x12\x16\n" +
-	"\x06method\x18\x03 \x01(\tR\x06method\x12\x12\n" +
-	"\x04path\x18\x04 \x01(\tR\x04path\x12\x14\n" +
-	"\x05query\x18\x05 \x01(\tR\x05query\x12)\n" +
-	"\aheaders\x18\x06 \x03(\v2\x0f.sink.v1.HeaderR\aheaders\x12!\n" +
-	"\fcontent_type\x18\a \x01(\tR\vcontentType\x12\x18\n" +
-	"\apayload\x18\b \x01(\fR\apayload\"4\n" +
+	"\tretryable\x18\x03 \x01(\bR\tretryable\"\xc5\x01\n" +
+	"\aCommand\x12\x10\n" +
+	"\x03uri\x18\x01 \x01(\tR\x03uri\x12\x16\n" +
+	"\x06method\x18\x02 \x01(\tR\x06method\x12\x12\n" +
+	"\x04path\x18\x03 \x01(\tR\x04path\x12\x14\n" +
+	"\x05query\x18\x04 \x01(\tR\x05query\x12)\n" +
+	"\aheaders\x18\x05 \x03(\v2\x0f.sink.v1.HeaderR\aheaders\x12!\n" +
+	"\fcontent_type\x18\x06 \x01(\tR\vcontentType\x12\x18\n" +
+	"\apayload\x18\a \x01(\fR\apayload\"4\n" +
 	"\x06Header\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
 	"\x06values\x18\x02 \x03(\tR\x06values\"<\n" +

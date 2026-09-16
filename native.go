@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	sinkv1 "github.com/liran/sink-go/api/sink/v1"
+	"github.com/liran/sink-go/uri"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
@@ -22,9 +23,9 @@ import (
 // Command is shared by Execute, Query, Count and Scan. Store configuration selects the
 // adapter; use only the fields that adapter needs. Payload contains native
 // command or body bytes, never an additional Sink-specific envelope.
+// URI identifies a resource; Path describes an operation relative to it.
 type Command struct {
-	Store       string
-	Namespace   string
+	URI         string
 	Method      string
 	Path        string
 	Query       string
@@ -35,10 +36,12 @@ type Command struct {
 
 // NewBSONCommand encodes an ordered document without opening a database
 // connection. Use a struct, bson.D, or bson.Raw to preserve command field order.
-func NewBSONCommand(store, namespace string, value any) (Command, error) {
+// The target is a database resource URI, e.g. sink://primary/catalog.
+func NewBSONCommand(target string, value any) (Command, error) {
 	var empty Command
-	if strings.TrimSpace(store) == "" || strings.TrimSpace(namespace) == "" || value == nil {
-		return empty, errors.New("BSON command requires a store, namespace and ordered value")
+	address, err := uri.Parse(target)
+	if err != nil || len(address.Segments()) != 1 || value == nil {
+		return empty, errors.New("BSON command requires a sink://store/database URI and ordered value")
 	}
 	valueType := reflect.TypeOf(value)
 	for valueType.Kind() == reflect.Pointer {
@@ -51,7 +54,7 @@ func NewBSONCommand(store, namespace string, value any) (Command, error) {
 	if err != nil {
 		return empty, fmt.Errorf("encode BSON command: %w", err)
 	}
-	command := Command{Store: store, Namespace: namespace, ContentType: "application/bson", Payload: payload}
+	command := Command{URI: address.String(), ContentType: "application/bson", Payload: payload}
 	return command, nil
 }
 
@@ -97,8 +100,8 @@ func (r ExecuteResponse) Decode(destination any) error {
 }
 
 func (c Command) toProto() (*sinkv1.Command, error) {
-	if strings.TrimSpace(c.Store) == "" {
-		return nil, errors.New("native command requires a store")
+	if _, err := uri.Parse(c.URI); err != nil {
+		return nil, fmt.Errorf("native command URI: %w", err)
 	}
 	if len(c.Payload) > 0 && c.ContentType == "" {
 		return nil, errors.New("native payload requires ContentType")
@@ -114,7 +117,7 @@ func (c Command) toProto() (*sinkv1.Command, error) {
 			}
 		}
 	}
-	command := &sinkv1.Command{Store: c.Store, Namespace: c.Namespace, Method: c.Method, Path: c.Path,
+	command := &sinkv1.Command{Uri: c.URI, Method: c.Method, Path: c.Path,
 		Query: c.Query, ContentType: c.ContentType, Payload: bytes.Clone(c.Payload)}
 	names := make([]string, 0, len(c.Headers))
 	for name, values := range c.Headers {

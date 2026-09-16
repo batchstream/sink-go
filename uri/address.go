@@ -1,4 +1,4 @@
-// Package uri defines Sink's canonical, backend-independent record addresses.
+// Package uri defines Sink's canonical, backend-independent resource addresses.
 // Store adapters interpret path segments; routing compares the complete URI.
 package uri
 
@@ -12,7 +12,8 @@ import (
 
 const MaxAddressBytes = 16 << 10
 
-// Address is immutable. Its canonical URI is its complete record identity.
+// Address is immutable. Store adapters interpret its resource path.
+// Record addresses use the complete URI as identity.
 type Address struct {
 	value    string
 	store    string
@@ -50,8 +51,12 @@ func Parse(value string) (Address, error) {
 	if !ValidStore(store) {
 		return empty, errors.New("store must use lowercase ASCII letters, digits, dots, underscores or hyphens")
 	}
-	if !found || path == "" {
-		return empty, errors.New("sink URI requires a path")
+	if !found {
+		address := Address{value: value, store: store}
+		return address, nil
+	}
+	if path == "" {
+		return empty, errors.New("use sink://store for a root URI")
 	}
 	encoded := strings.Split(path, "/")
 	segments := make([]string, len(encoded))
@@ -73,6 +78,9 @@ func Parse(value string) (Address, error) {
 }
 
 func New(store string, segments []string) (Address, error) {
+	if len(segments) == 0 {
+		return Parse("sink://" + store)
+	}
 	encoded := make([]string, len(segments))
 	for i, segment := range segments {
 		encoded[i] = url.PathEscape(segment)
@@ -91,6 +99,9 @@ func (a Address) String() string     { return a.value }
 func (a Address) Store() string      { return a.store }
 func (a Address) Segments() []string { return append([]string(nil), a.segments...) }
 func (a Address) RoutingKey() string { return a.value }
+
+// EscapedPath preserves canonical path encoding. An empty path targets the Store.
+func (a Address) EscapedPath() string { return strings.TrimPrefix(a.value, "sink://"+a.store) }
 
 // AppendKey uses the typed-key convention supported by the built-in stores.
 // Custom stores may define other path grammars and construct addresses with New.
