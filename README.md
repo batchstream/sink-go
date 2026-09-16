@@ -567,7 +567,7 @@ scan deadlines.
 ## Reliability behavior
 
 `Dial` defaults to `round_robin` across the addresses returned by the resolver.
-In Kubernetes, use a headless Service selecting only Sink server pods and a
+In Kubernetes, use a headless Service selecting only Sink Gateway pods and a
 target such as `dns:///sink-headless.sink.svc.cluster.local:8080`. A normal
 ClusterIP resolves to one virtual address and does not expose individual
 replicas for per-RPC balancing. Resolver service configuration or explicit
@@ -607,6 +607,20 @@ DNS-server cache configuration.
 During scale-in, allow enough time after endpoint removal for clients to refresh,
 then gracefully drain the server. Abrupt termination can fail in-flight calls;
 load balancing does not make mutating RPCs safe to replay.
+
+The SDK interval applies to Gateway discovery; Gateway has a separate
+`gateway.dns_refresh_interval` for Engine discovery. Size each rollout's serving
+overlap for endpoint publication, upstream DNS caches, refresh and lookup delays,
+plus accepted requests that still retain an old Engine address snapshot.
+Kubernetes `preStop` is part of the total termination grace period, whereas
+Sink's `shutdown_timeout` bounds gRPC draining after SIGTERM. A refresh interval
+shorter than `preStop` is not sufficient by itself. See the server's
+[rollout timing and qualification guide](https://github.com/liran/sink/blob/main/docs/rolling-upgrades.md).
+
+The URI-only SDK release line starting with v0.8.0 pairs with Sink v0.15.0 or
+later compatible releases. Upgrade the three server roles and clients together
+using the [configuration migration guide](https://github.com/liran/sink/blob/main/docs/configuration-migration.md);
+v0.7.x and the earlier multi-Store protocol are not wire-compatible with this line.
 
 Reads retry transport-level `Unavailable` failures and retryable per-operation
 failures with bounded exponential backoff and jitter. Only failed operations are
