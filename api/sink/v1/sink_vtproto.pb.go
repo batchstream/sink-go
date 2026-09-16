@@ -6,10 +6,9 @@ package sinkv1
 
 import (
 	fmt "fmt"
-	io "io"
-
 	protohelpers "github.com/planetscale/vtprotobuf/protohelpers"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	io "io"
 )
 
 const (
@@ -1067,14 +1066,14 @@ func (m *Command) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		copy(dAtA[i:], m.Payload)
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Payload)))
 		i--
-		dAtA[i] = 0x42
+		dAtA[i] = 0x3a
 	}
 	if len(m.ContentType) > 0 {
 		i -= len(m.ContentType)
 		copy(dAtA[i:], m.ContentType)
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.ContentType)))
 		i--
-		dAtA[i] = 0x3a
+		dAtA[i] = 0x32
 	}
 	if len(m.Headers) > 0 {
 		for iNdEx := len(m.Headers) - 1; iNdEx >= 0; iNdEx-- {
@@ -1085,7 +1084,7 @@ func (m *Command) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 			i -= size
 			i = protohelpers.EncodeVarint(dAtA, i, uint64(size))
 			i--
-			dAtA[i] = 0x32
+			dAtA[i] = 0x2a
 		}
 	}
 	if len(m.Query) > 0 {
@@ -1093,33 +1092,26 @@ func (m *Command) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		copy(dAtA[i:], m.Query)
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Query)))
 		i--
-		dAtA[i] = 0x2a
+		dAtA[i] = 0x22
 	}
 	if len(m.Path) > 0 {
 		i -= len(m.Path)
 		copy(dAtA[i:], m.Path)
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Path)))
 		i--
-		dAtA[i] = 0x22
+		dAtA[i] = 0x1a
 	}
 	if len(m.Method) > 0 {
 		i -= len(m.Method)
 		copy(dAtA[i:], m.Method)
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Method)))
 		i--
-		dAtA[i] = 0x1a
-	}
-	if len(m.Namespace) > 0 {
-		i -= len(m.Namespace)
-		copy(dAtA[i:], m.Namespace)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Namespace)))
-		i--
 		dAtA[i] = 0x12
 	}
-	if len(m.Store) > 0 {
-		i -= len(m.Store)
-		copy(dAtA[i:], m.Store)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Store)))
+	if len(m.Uri) > 0 {
+		i -= len(m.Uri)
+		copy(dAtA[i:], m.Uri)
+		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Uri)))
 		i--
 		dAtA[i] = 0xa
 	}
@@ -2116,11 +2108,7 @@ func (m *Command) SizeVT() (n int) {
 	}
 	var l int
 	_ = l
-	l = len(m.Store)
-	if l > 0 {
-		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
-	l = len(m.Namespace)
+	l = len(m.Uri)
 	if l > 0 {
 		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
 	}
@@ -4622,7 +4610,7 @@ func (m *Command) UnmarshalVT(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Store", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Uri", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -4650,41 +4638,9 @@ func (m *Command) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Store = string(dAtA[iNdEx:postIndex])
+			m.Uri = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Namespace", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Namespace = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 3:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Method", wireType)
 			}
@@ -4716,7 +4672,7 @@ func (m *Command) UnmarshalVT(dAtA []byte) error {
 			}
 			m.Method = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 4:
+		case 3:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Path", wireType)
 			}
@@ -4748,7 +4704,7 @@ func (m *Command) UnmarshalVT(dAtA []byte) error {
 			}
 			m.Path = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 5:
+		case 4:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Query", wireType)
 			}
@@ -4780,7 +4736,7 @@ func (m *Command) UnmarshalVT(dAtA []byte) error {
 			}
 			m.Query = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 6:
+		case 5:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Headers", wireType)
 			}
@@ -4815,7 +4771,7 @@ func (m *Command) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 7:
+		case 6:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ContentType", wireType)
 			}
@@ -4847,7 +4803,7 @@ func (m *Command) UnmarshalVT(dAtA []byte) error {
 			}
 			m.ContentType = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 8:
+		case 7:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Payload", wireType)
 			}

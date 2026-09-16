@@ -219,51 +219,34 @@ enum FailureCode {
   FAILURE_CODE_INTERNAL = 8;
 }
 
-// Command is the common input for Execute, Query, Count and Scan. Store configuration selects
-// the adapter, which reads and validates the fields it needs. There is no
-// backend-specific message branch or additional Sink envelope inside payload.
-// Fields not used by an adapter must be empty.
-//
-// Current adapter mappings:
-// - MongoDB: store, namespace, content_type and payload. Namespace is the
-//   database; payload is the complete ordered BSON command document, including
-//   the command name and collection when applicable. Use application/bson.
-// - HTTP search: store, method, path, query, headers, content_type and payload.
-//   Payload is the original request body, such as JSON or NDJSON. Namespace is
-//   unused; resource selection is already expressed by path and the native body.
-//
-// These are native operations: payload retains the selected backend's syntax.
-// SDK helpers can serialize native values directly into payload without callers
-// constructing a separate Sink-specific command envelope.
+// Command is shared by Execute, Query, Count and Scan. The canonical URI selects
+// a configured Store; only its adapter interprets the remaining path.
+// MongoDB uses sink://store/database with an ordered BSON command payload.
+// HTTP search uses sink://store/index with a separate native operation path,
+// such as /_search, method, query, headers and body. A Store root is
+// spelled sink://store. Endpoints and authentication come from configuration.
 message Command {
-  // Required logical store. Endpoints and credentials come from server config.
-  string store = 1;
+  string uri = 1;
 
-  // Execution scope, such as a database name, when the adapter requires one.
-  string namespace = 2;
+  // Native request method, such as GET or POST. Unused by MongoDB.
+  string method = 2;
 
-  // Request method, such as GET or POST, when the adapter uses request methods.
-  string method = 3;
-
-  // Absolute path within the configured endpoint, never a URL. No host, query,
-  // fragment or traversal segments; escaped resource IDs are supported.
-  string path = 4;
+  // Operation path relative to the URI resource, e.g. /_search or /_mapping.
+  // Unused by MongoDB; its operation is carried by the BSON command.
+  string path = 3;
 
   // URL-encoded query parameters without a leading '?'; repeated keys are valid.
-  string query = 5;
+  string query = 4;
 
-  // Repeated values are preserved. Authentication and transport-owned headers
-  // remain server-controlled. Set Content-Type using content_type, not headers.
-  repeated Header headers = 6;
+  // Authentication and transport-owned headers remain server-controlled.
+  // Set Content-Type using content_type, not headers.
+  repeated Header headers = 5;
 
-  // Payload media type, e.g. application/bson, application/json or
-  // application/x-ndjson. Required when payload is nonempty. This describes the
-  // native encoding, not a separately versioned Sink payload schema.
-  string content_type = 7;
+  // Payload media type. Required when payload is nonempty.
+  string content_type = 6;
 
-  // Original command document or request body bytes. Keep native scalar types,
-  // field order and bulk framing intact; no custom protobuf value wrappers.
-  bytes payload = 8;
+  // Original ordered command or request body, without a Sink-specific envelope.
+  bytes payload = 7;
 }
 
 message Header {

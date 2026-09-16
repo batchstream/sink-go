@@ -96,7 +96,9 @@ end`))
 		}
 	}
 	find := bson.D{{Key: "find", Value: collection}, {Key: "filter", Value: bson.D{{Key: "count", Value: 2}}}}
-	command, err = sink.NewBSONCommand("primary", "sink_go_client", find)
+	command, err = sink.NewBSONCommand("sink://primary/sink_go_client",
+
+		find)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +161,9 @@ end`))
 		t.Fatalf("Scan projection was ignored: %s", rawScan)
 	}
 	invalid := bson.D{{Key: "count", Value: collection}, {Key: "unknownOption", Value: true}}
-	command, err = sink.NewBSONCommand("primary", "sink_go_client", invalid)
+	command, err = sink.NewBSONCommand("sink://primary/sink_go_client",
+
+		invalid)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +175,9 @@ end`))
 	}
 	modify := bson.D{{Key: "findAndModify", Value: collection}, {Key: "query", Value: bson.D{{Key: "_id", Value: "quota"}}},
 		{Key: "update", Value: bson.D{{Key: "$inc", Value: bson.D{{Key: "count", Value: 1}}}}}, {Key: "new", Value: true}}
-	command, err = sink.NewBSONCommand("primary", "sink_go_client", modify)
+	command, err = sink.NewBSONCommand("sink://primary/sink_go_client",
+
+		modify)
 	if err != nil {
 		t.Fatal(err)
 	}

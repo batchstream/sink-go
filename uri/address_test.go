@@ -23,7 +23,7 @@ func TestURIIsCanonicalAndOpaque(t *testing.T) {
 	if parsed.Segments()[0] != segments[0] {
 		t.Fatal("mutable address")
 	}
-	for _, value := range []string{"http://catalog/a", "sink://Catalog/a", "sink://catalog", "sink://catalog/a/", "sink://catalog/a//b", "sink://catalog/../b", "sink://catalog/a?query", "sink://catalog/a#fragment", "sink://catalog/%61", "sink://catalog/a%2fb", "sink://user@catalog/a", "sink://catalog:8080/a", "sink://catalog/%ff"} {
+	for _, value := range []string{"http://catalog/a", "sink://Catalog/a", "sink://catalog/", "sink://catalog/a/", "sink://catalog/a//b", "sink://catalog/../b", "sink://catalog/a?query", "sink://catalog/a#fragment", "sink://catalog/%61", "sink://catalog/a%2fb", "sink://user@catalog/a", "sink://catalog:8080/a", "sink://catalog/%ff"} {
 		if _, err := Parse(value); err == nil {
 			t.Errorf("accepted noncanonical URI %q", value)
 		}

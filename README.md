@@ -246,13 +246,13 @@ the transport error. Low-level results expose `Err()`, and `ReadResultsError`,
 Construct ordered MongoDB commands without opening a database connection. A
 struct, `bson.D`, or `bson.Raw` preserves the command field order; unordered maps
 are rejected by `NewBSONCommand`. All native RPCs use the same `Command` fields
-(store, namespace, method, path, query, headers, content type and payload). BSON values are retained through the RPC:
+(URI, method, path, query, headers, content type and payload). BSON values are retained through the RPC:
 
 ```go
 commandValue := struct {
 	Count string `bson:"count"`
 }{Count: "products"}
-command, err := sink.NewBSONCommand("primary", "catalog", commandValue)
+command, err := sink.NewBSONCommand("sink://primary/catalog", commandValue)
 if err != nil {
 	return err
 }
@@ -273,15 +273,16 @@ if err := response.Decode(&count); err != nil {
 }
 ```
 
-For search, pass the method, endpoint path, URL-encoded query parameters, and
-original body. Sink uses its configured endpoint and credentials. For example:
+For search, put the resource in URI and the operation in Path: for example,
+`URI: "sink://search-main/products"`, `Path: "/_search"`. Pass the HTTP method,
+URL-encoded query parameters and original body separately. Sink uses its configured endpoint and credentials. For example:
 
 ```go
 command := sink.Command{
-	Store: "search-main",
+	URI: "sink://search-main/products",
 	ContentType: "application/json",
 	Method: "POST",
-	Path:   "/products/_search",
+	Path:   "/_search",
 	Query:  "track_total_hits=true",
 	Payload: []byte(`{"query":{"match":{"name":"keyboard"}},"size":20}`),
 }
@@ -336,9 +337,9 @@ count separately when needed. Reuse the same native query Command for both:
 
 ```go
 command := sink.Command{
- Store: "search-main",
+ URI: "sink://search-main/products",
  Method: "POST",
- Path: "/products/_search",
+ Path: "/_search",
  ContentType: "application/json",
  Payload: []byte(`{"query":{"match":{"name":"keyboard"}}}`),
 }
@@ -391,10 +392,10 @@ Incomplete counts and approximate HTTP search totals fail. Query and Count retur
 and the SDK retries neither operation.
 
 `Dataset` also exposes `Execute`, `Query`, `Count` and `Scan` using the same request
-and response types as Client. Store is bound automatically. BSON datasets bind the
+and response types as Client. URI is bound automatically. BSON datasets bind the
 database and collection from their URI; JSON datasets bind the index from their URI. Empty Query/Count commands select all records in the
 Dataset. MongoDB Scan also accepts an empty Command; JSON Scan needs a body with
-an explicit stable sort. Conflicting stores, namespaces or BSON collection targets fail.
+an explicit stable sort. Conflicting resource URIs or BSON collection targets fail.
 The Dataset wrappers retain native error, retry and cursor semantics.
 
 ```go
@@ -452,10 +453,10 @@ Scan returns one page at a time and does not accumulate the complete result set:
 
 ```go
 command := sink.Command{
- Store: "search-main",
+ URI: "sink://search-main/products",
  ContentType: "application/json",
  Method: "POST",
- Path: "/products/_search",
+ Path: "/_search",
  Payload: []byte(`{"query":{"match_all":{}},"sort":[{"uid.keyword":"asc"}]}`),
 }
 projection := &sink.Projection{Fields: []string{"name", "price"}}

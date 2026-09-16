@@ -72,7 +72,7 @@ func TestQueryAndCountPreserveControlsAndExactIntegers(t *testing.T) {
 	if err != nil || count.Count != 1<<53+1 || server.countCalls.Load() != 1 {
 		t.Fatalf("count=%+v err=%v", count, err)
 	}
-	if captured := <-server.counts; captured.GetCommand().GetStore() != command.Store {
+	if captured := <-server.counts; captured.GetCommand().GetUri() != command.URI {
 		t.Fatalf("count lost store: %v", captured)
 	}
 }

@@ -87,7 +87,7 @@ func (s *nativeRPCServer) Write(_ context.Context, req *sinkv1.WriteRequest) (*s
 }
 
 func sdkNativeRequest() sink.ExecuteRequest {
-	command := sink.Command{Store: "search", Method: "POST", Path: "/products/_msearch", Query: "q=a&q=b",
+	command := sink.Command{URI: "sink://search/products", Method: "POST", Path: "/_msearch", Query: "q=a&q=b",
 		Headers: http.Header{"Accept": {"application/json"}}, ContentType: "application/x-ndjson", Payload: []byte("{}\n{}\n")}
 	request := sink.ExecuteRequest{Command: command}
 	return request
@@ -108,6 +108,9 @@ func TestExecuteRetainsNativeFailureAndRequestBytes(t *testing.T) {
 		t.Fatalf("decode=%v err=%v", document, err)
 	}
 	captured := <-server.requests
+	if captured.Command.Uri != request.Command.URI || captured.Command.Path != request.Command.Path {
+		t.Fatalf("resource URI and operation path were not preserved: %v", captured.Command)
+	}
 	if !bytes.Equal(captured.GetCommand().GetPayload(), request.Command.Payload) || captured.GetCommand().GetQuery() != request.Command.Query || server.executeCalls.Load() != 1 {
 		t.Fatalf("native request changed or retried: %v", captured)
 	}
@@ -171,12 +174,16 @@ func TestScanRequestCancellationReleasesServer(t *testing.T) {
 func TestBSONCommandRequiresOrderAndPreservesBSON(t *testing.T) {
 	unordered := map[string]any{"find": "products", "filter": map[string]any{}}
 	for _, value := range []any{unordered, &unordered} {
-		if _, err := sink.NewBSONCommand("primary", "catalog", value); err == nil {
+		if _, err := sink.NewBSONCommand("sink://primary/catalog",
+
+			value); err == nil {
 			t.Fatal("accepted unordered command")
 		}
 	}
 	ordered := bson.D{{Key: "find", Value: "products"}, {Key: "filter", Value: bson.D{{Key: "at", Value: bson.DateTime(1234)}}}}
-	command, err := sink.NewBSONCommand("primary", "catalog", ordered)
+	command, err := sink.NewBSONCommand("sink://primary/catalog",
+
+		ordered)
 	if err != nil {
 		t.Fatal(err)
 	}

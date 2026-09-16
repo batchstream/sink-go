@@ -39,10 +39,10 @@ func TestNewDatasetValidatesAndCopiesOptions(t *testing.T) {
 
 	missingStore := validOptions
 	missingStore.URI = "sink:///products"
-	missingNamespace := validOptions
-	missingNamespace.URI = ""
-	missingDataset := validOptions
-	missingDataset.URI = "sink://search-main/"
+	missingURI := validOptions
+	missingURI.URI = ""
+	emptySegment := validOptions
+	emptySegment.URI = "sink://search-main/"
 	missingEncoding := validOptions
 	missingEncoding.Encoding = 0
 	var emptyMergeProgram sink.LuaProgram
@@ -53,8 +53,8 @@ func TestNewDatasetValidatesAndCopiesOptions(t *testing.T) {
 		options sink.DatasetOptions
 	}{
 		{name: "missing store", options: missingStore},
-		{name: "missing namespace", options: missingNamespace},
-		{name: "missing dataset", options: missingDataset},
+		{name: "missing URI", options: missingURI},
+		{name: "empty URI segment", options: emptySegment},
 		{name: "missing encoding", options: missingEncoding},
 		{name: "empty merge program", options: emptyProgram},
 	}
