@@ -45,7 +45,7 @@ jobs:
         run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 -checks=all ./...
 
   compatibility:
-    name: Current Sink compatibility
+    name: Current Sink integration
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -76,18 +76,18 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Verify protobuf compatibility
+      - name: Verify matching protobuf contract
         run: |
           sed 's#github.com/liran/sink/gen/sink;sink#github.com/liran/sink-go/api/sink/v1;sinkv1#' \
             sink-server/proto/sink/sink.proto | diff -u - proto/sink/sink.proto
 
       - name: Start Sink with MongoDB and Kafka
-        run: docker compose --file sink-server/examples/quickstart/compose.yaml up --detach --build sink
+        run: docker compose --file sink-server/examples/quickstart/compose.yaml up --detach --build engine worker gateway
 
       - name: Wait for storage and Kafka readiness
         run: |
           deadline=$((SECONDS + 90))
-          until curl --max-time 2 --fail --silent --output /dev/null http://127.0.0.1:9090/readyz; do
+          until curl --max-time 2 --fail --silent --output /dev/null http://127.0.0.1:19091/readyz; do
             if (( SECONDS >= deadline )); then
               echo "Sink dependencies did not become ready" >&2
               exit 1
@@ -95,7 +95,7 @@ jobs:
             sleep 1
           done
 
-      - name: Run compatibility tests
+      - name: Run current protocol integration tests
         env:
           SINK_INTEGRATION_ADDRESS: 127.0.0.1:8080
         run: go test -tags=integration ./... -count=1
