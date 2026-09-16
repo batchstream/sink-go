@@ -87,7 +87,7 @@ jobs:
       - name: Wait for storage and Kafka readiness
         run: |
           deadline=$((SECONDS + 90))
-          until curl --max-time 2 --fail --silent --output /dev/null http://127.0.0.1:19091/readyz; do
+          until curl --max-time 2 --fail --silent --output /dev/null http://127.0.0.1:18081/readyz; do
             if (( SECONDS >= deadline )); then
               echo "Sink dependencies did not become ready" >&2
               exit 1
