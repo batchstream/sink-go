@@ -29,7 +29,6 @@ const (
 	defaultRetryJitter        = 0.2
 	defaultMaxMessageBytes    = 64 << 20
 	defaultDNSRefreshInterval = 30 * time.Second
-	defaultScanTimeout        = 30 * time.Second
 )
 
 // RetryPolicy controls backoff and attempt limits. Read retries Unavailable and
@@ -50,7 +49,8 @@ type ClientOptions struct {
 	ScanRetry     RetryPolicy
 
 	// ScanTimeout bounds a whole page, including admission retries and backoff.
-	// Zero defaults to 30 seconds. A shorter context deadline wins.
+	// Zero adds no deadline. A positive value is an explicit caller-selected
+	// page limit; a shorter context deadline wins.
 	ScanTimeout            time.Duration
 	MaxReceiveMessageBytes int
 	MaxSendMessageBytes    int
@@ -167,9 +167,6 @@ func newClientConfig(opts ClientOptions) (clientConfig, error) {
 		return config, fmt.Errorf("create Sink client: scan retry: %w", err)
 	}
 	scanTimeout := opts.ScanTimeout
-	if scanTimeout == 0 {
-		scanTimeout = defaultScanTimeout
-	}
 	maxReceiveBytes := opts.MaxReceiveMessageBytes
 	if maxReceiveBytes == 0 {
 		maxReceiveBytes = defaultMaxMessageBytes

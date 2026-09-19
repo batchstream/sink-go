@@ -216,8 +216,11 @@ func (c *Client) Scan(ctx context.Context, req ScanRequest) (ScanResponse, error
 	if err != nil {
 		return empty, err
 	}
-	ctx, cancel := context.WithTimeout(ctx, c.config.scanTimeout)
-	defer cancel()
+	if c.config.scanTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, c.config.scanTimeout)
+		defer cancel()
+	}
 	var response *sinkv1.ScanResponse
 	backoff := c.config.scanRetry.InitialBackoff
 	for attempt := 1; attempt <= c.config.scanRetry.MaxAttempts; attempt++ {
