@@ -36,7 +36,33 @@ jobs:
           test ! -s /tmp/sink-go-gofmt.out
 
       - name: Run race tests
-        run: go test -race ./... -count=1
+        run: make test-coverage
+
+      - name: Preserve unit coverage and test events
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: unit-coverage
+          path: .reports/coverage/
+          include-hidden-files: true
+          retention-days: 14
+
+      - name: Fuzz canonical URI boundaries
+        run: |
+          mkdir -p .reports/fuzz
+          go test ./uri -run='^$' -fuzz='^FuzzCanonicalURI$' -fuzztime=30s -parallel=2 2>&1 | tee .reports/fuzz/uri.log
+          grep -q 'new interesting:' .reports/fuzz/uri.log
+
+      - name: Preserve fuzz evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: uri-fuzzing
+          path: |
+            .reports/fuzz/
+            uri/testdata/fuzz/
+          include-hidden-files: true
+          retention-days: 14
 
       - name: Run vet
         run: go vet ./...

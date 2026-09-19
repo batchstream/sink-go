@@ -41,3 +41,12 @@ lint:
 
 clean:
 	rm -r $(BIN_DIR)
+
+# Core-package floors are kept separately from generated code and examples.
+.PHONY: test-coverage
+COVERAGE_DIR ?= .reports/coverage
+test-coverage:
+	@mkdir -p $(COVERAGE_DIR)
+	go test -mod=readonly -race -covermode=atomic -coverpkg=./... -coverprofile=$(COVERAGE_DIR)/unit.out -count=1 -timeout=10m -json ./... > $(COVERAGE_DIR)/unit.jsonl
+	python3 -m unittest discover -s scripts -p 'test_coverage.py'
+	python3 scripts/check-coverage.py --profile $(COVERAGE_DIR)/unit.out --minimums .github/coverage-minimums.json --report $(COVERAGE_DIR)/summary.md
