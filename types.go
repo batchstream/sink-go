@@ -408,27 +408,16 @@ func (o WriteOperation) validate() error {
 	return nil
 }
 
-// RevisionToken is an opaque storage revision returned by Sink.
-type RevisionToken struct {
-	data []byte
-}
-
-func (r RevisionToken) Bytes() []byte {
-	return bytes.Clone(r.data)
-}
-
 type ReadResult struct {
 	OperationIndex int
 	Status         ReadStatus
 	Document       Document
-	Revision       RevisionToken
 	Failure        *OperationError
 }
 
 type WriteResult struct {
 	OperationIndex int
 	Status         WriteStatus
-	Revision       RevisionToken
 	Failure        *OperationError
 	Document       Document
 }

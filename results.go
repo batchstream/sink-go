@@ -19,7 +19,6 @@ func decodeReadResult(protoResult *sinkv1.ReadResult, index int) (ReadResult, er
 			return empty, protocolError("Read", fmt.Sprintf("result %d: %v", index, documentErr))
 		}
 		result.Document = document
-		result.Revision = revisionFromProto(protoResult.GetRevision())
 	case ReadNotFound:
 	case ReadFailed:
 		failure, failureErr := operationFailure(index, protoResult.GetFailure())
@@ -42,7 +41,6 @@ func decodeWriteResult(protoResult *sinkv1.WriteResult, index int) (WriteResult,
 	result := WriteResult{
 		OperationIndex: index,
 		Status:         protoResult.GetStatus(),
-		Revision:       revisionFromProto(protoResult.GetRevision()),
 	}
 	if protoResult.GetDocument() != nil {
 		if result.Status != WriteApplied {

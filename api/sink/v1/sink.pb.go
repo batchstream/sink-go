@@ -510,51 +510,6 @@ func (x *Document) GetPayload() []byte {
 	return nil
 }
 
-// RevisionToken is interpreted only by the selected storage adapter.
-type RevisionToken struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Data          []byte                 `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RevisionToken) Reset() {
-	*x = RevisionToken{}
-	mi := &file_sink_sink_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RevisionToken) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RevisionToken) ProtoMessage() {}
-
-func (x *RevisionToken) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RevisionToken.ProtoReflect.Descriptor instead.
-func (*RevisionToken) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *RevisionToken) GetData() []byte {
-	if x != nil {
-		return x.Data
-	}
-	return nil
-}
-
 type ReadRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Operations    []*ReadOperation       `protobuf:"bytes,1,rep,name=operations,proto3" json:"operations,omitempty"`
@@ -564,7 +519,7 @@ type ReadRequest struct {
 
 func (x *ReadRequest) Reset() {
 	*x = ReadRequest{}
-	mi := &file_sink_sink_proto_msgTypes[3]
+	mi := &file_sink_sink_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -576,7 +531,7 @@ func (x *ReadRequest) String() string {
 func (*ReadRequest) ProtoMessage() {}
 
 func (x *ReadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[3]
+	mi := &file_sink_sink_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -589,7 +544,7 @@ func (x *ReadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadRequest.ProtoReflect.Descriptor instead.
 func (*ReadRequest) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{3}
+	return file_sink_sink_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ReadRequest) GetOperations() []*ReadOperation {
@@ -608,7 +563,7 @@ type ReadOperation struct {
 
 func (x *ReadOperation) Reset() {
 	*x = ReadOperation{}
-	mi := &file_sink_sink_proto_msgTypes[4]
+	mi := &file_sink_sink_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -620,7 +575,7 @@ func (x *ReadOperation) String() string {
 func (*ReadOperation) ProtoMessage() {}
 
 func (x *ReadOperation) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[4]
+	mi := &file_sink_sink_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -633,7 +588,7 @@ func (x *ReadOperation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadOperation.ProtoReflect.Descriptor instead.
 func (*ReadOperation) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{4}
+	return file_sink_sink_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ReadOperation) GetAddress() *RecordAddress {
@@ -654,7 +609,7 @@ type ReadResponse struct {
 
 func (x *ReadResponse) Reset() {
 	*x = ReadResponse{}
-	mi := &file_sink_sink_proto_msgTypes[5]
+	mi := &file_sink_sink_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -666,7 +621,7 @@ func (x *ReadResponse) String() string {
 func (*ReadResponse) ProtoMessage() {}
 
 func (x *ReadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[5]
+	mi := &file_sink_sink_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -679,7 +634,7 @@ func (x *ReadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadResponse.ProtoReflect.Descriptor instead.
 func (*ReadResponse) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{5}
+	return file_sink_sink_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ReadResponse) GetResults() []*ReadResult {
@@ -694,7 +649,6 @@ type ReadResult struct {
 	OperationIndex uint32                 `protobuf:"varint,1,opt,name=operation_index,json=operationIndex,proto3" json:"operation_index,omitempty"`
 	Status         ReadStatus             `protobuf:"varint,2,opt,name=status,proto3,enum=sink.v1.ReadStatus" json:"status,omitempty"`
 	Document       *Document              `protobuf:"bytes,3,opt,name=document,proto3" json:"document,omitempty"`
-	Revision       *RevisionToken         `protobuf:"bytes,4,opt,name=revision,proto3" json:"revision,omitempty"`
 	Failure        *Failure               `protobuf:"bytes,5,opt,name=failure,proto3" json:"failure,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -702,7 +656,7 @@ type ReadResult struct {
 
 func (x *ReadResult) Reset() {
 	*x = ReadResult{}
-	mi := &file_sink_sink_proto_msgTypes[6]
+	mi := &file_sink_sink_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -714,7 +668,7 @@ func (x *ReadResult) String() string {
 func (*ReadResult) ProtoMessage() {}
 
 func (x *ReadResult) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[6]
+	mi := &file_sink_sink_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -727,7 +681,7 @@ func (x *ReadResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadResult.ProtoReflect.Descriptor instead.
 func (*ReadResult) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{6}
+	return file_sink_sink_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ReadResult) GetOperationIndex() uint32 {
@@ -747,13 +701,6 @@ func (x *ReadResult) GetStatus() ReadStatus {
 func (x *ReadResult) GetDocument() *Document {
 	if x != nil {
 		return x.Document
-	}
-	return nil
-}
-
-func (x *ReadResult) GetRevision() *RevisionToken {
-	if x != nil {
-		return x.Revision
 	}
 	return nil
 }
@@ -780,7 +727,7 @@ type WriteRequest struct {
 
 func (x *WriteRequest) Reset() {
 	*x = WriteRequest{}
-	mi := &file_sink_sink_proto_msgTypes[7]
+	mi := &file_sink_sink_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -792,7 +739,7 @@ func (x *WriteRequest) String() string {
 func (*WriteRequest) ProtoMessage() {}
 
 func (x *WriteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[7]
+	mi := &file_sink_sink_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -805,7 +752,7 @@ func (x *WriteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteRequest.ProtoReflect.Descriptor instead.
 func (*WriteRequest) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{7}
+	return file_sink_sink_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *WriteRequest) GetCompletionMode() CompletionMode {
@@ -847,7 +794,7 @@ type WriteOperation struct {
 
 func (x *WriteOperation) Reset() {
 	*x = WriteOperation{}
-	mi := &file_sink_sink_proto_msgTypes[8]
+	mi := &file_sink_sink_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -859,7 +806,7 @@ func (x *WriteOperation) String() string {
 func (*WriteOperation) ProtoMessage() {}
 
 func (x *WriteOperation) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[8]
+	mi := &file_sink_sink_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -872,7 +819,7 @@ func (x *WriteOperation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteOperation.ProtoReflect.Descriptor instead.
 func (*WriteOperation) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{8}
+	return file_sink_sink_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *WriteOperation) GetAddress() *RecordAddress {
@@ -941,7 +888,7 @@ type PutOperation struct {
 
 func (x *PutOperation) Reset() {
 	*x = PutOperation{}
-	mi := &file_sink_sink_proto_msgTypes[9]
+	mi := &file_sink_sink_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -953,7 +900,7 @@ func (x *PutOperation) String() string {
 func (*PutOperation) ProtoMessage() {}
 
 func (x *PutOperation) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[9]
+	mi := &file_sink_sink_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -966,7 +913,7 @@ func (x *PutOperation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PutOperation.ProtoReflect.Descriptor instead.
 func (*PutOperation) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{9}
+	return file_sink_sink_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *PutOperation) GetDocument() *Document {
@@ -996,7 +943,7 @@ type MergeOperation struct {
 
 func (x *MergeOperation) Reset() {
 	*x = MergeOperation{}
-	mi := &file_sink_sink_proto_msgTypes[10]
+	mi := &file_sink_sink_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1008,7 +955,7 @@ func (x *MergeOperation) String() string {
 func (*MergeOperation) ProtoMessage() {}
 
 func (x *MergeOperation) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[10]
+	mi := &file_sink_sink_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1021,7 +968,7 @@ func (x *MergeOperation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MergeOperation.ProtoReflect.Descriptor instead.
 func (*MergeOperation) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{10}
+	return file_sink_sink_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *MergeOperation) GetIncomingDocument() *Document {
@@ -1054,7 +1001,7 @@ type LuaProgram struct {
 
 func (x *LuaProgram) Reset() {
 	*x = LuaProgram{}
-	mi := &file_sink_sink_proto_msgTypes[11]
+	mi := &file_sink_sink_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1066,7 +1013,7 @@ func (x *LuaProgram) String() string {
 func (*LuaProgram) ProtoMessage() {}
 
 func (x *LuaProgram) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[11]
+	mi := &file_sink_sink_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1079,7 +1026,7 @@ func (x *LuaProgram) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LuaProgram.ProtoReflect.Descriptor instead.
 func (*LuaProgram) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{11}
+	return file_sink_sink_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *LuaProgram) GetSource() []byte {
@@ -1107,7 +1054,7 @@ type WriteResponse struct {
 
 func (x *WriteResponse) Reset() {
 	*x = WriteResponse{}
-	mi := &file_sink_sink_proto_msgTypes[12]
+	mi := &file_sink_sink_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1119,7 +1066,7 @@ func (x *WriteResponse) String() string {
 func (*WriteResponse) ProtoMessage() {}
 
 func (x *WriteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[12]
+	mi := &file_sink_sink_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1132,7 +1079,7 @@ func (x *WriteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteResponse.ProtoReflect.Descriptor instead.
 func (*WriteResponse) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{12}
+	return file_sink_sink_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *WriteResponse) GetResults() []*WriteResult {
@@ -1146,7 +1093,6 @@ type WriteResult struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	OperationIndex uint32                 `protobuf:"varint,1,opt,name=operation_index,json=operationIndex,proto3" json:"operation_index,omitempty"`
 	Status         WriteStatus            `protobuf:"varint,2,opt,name=status,proto3,enum=sink.v1.WriteStatus" json:"status,omitempty"`
-	Revision       *RevisionToken         `protobuf:"bytes,3,opt,name=revision,proto3" json:"revision,omitempty"`
 	Failure        *Failure               `protobuf:"bytes,4,opt,name=failure,proto3" json:"failure,omitempty"`
 	Document       *Document              `protobuf:"bytes,5,opt,name=document,proto3" json:"document,omitempty"`
 	unknownFields  protoimpl.UnknownFields
@@ -1155,7 +1101,7 @@ type WriteResult struct {
 
 func (x *WriteResult) Reset() {
 	*x = WriteResult{}
-	mi := &file_sink_sink_proto_msgTypes[13]
+	mi := &file_sink_sink_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1167,7 +1113,7 @@ func (x *WriteResult) String() string {
 func (*WriteResult) ProtoMessage() {}
 
 func (x *WriteResult) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[13]
+	mi := &file_sink_sink_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1180,7 +1126,7 @@ func (x *WriteResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteResult.ProtoReflect.Descriptor instead.
 func (*WriteResult) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{13}
+	return file_sink_sink_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *WriteResult) GetOperationIndex() uint32 {
@@ -1195,13 +1141,6 @@ func (x *WriteResult) GetStatus() WriteStatus {
 		return x.Status
 	}
 	return WriteStatus_WRITE_STATUS_UNSPECIFIED
-}
-
-func (x *WriteResult) GetRevision() *RevisionToken {
-	if x != nil {
-		return x.Revision
-	}
-	return nil
 }
 
 func (x *WriteResult) GetFailure() *Failure {
@@ -1229,7 +1168,7 @@ type DeleteRequest struct {
 
 func (x *DeleteRequest) Reset() {
 	*x = DeleteRequest{}
-	mi := &file_sink_sink_proto_msgTypes[14]
+	mi := &file_sink_sink_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1241,7 +1180,7 @@ func (x *DeleteRequest) String() string {
 func (*DeleteRequest) ProtoMessage() {}
 
 func (x *DeleteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[14]
+	mi := &file_sink_sink_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1254,7 +1193,7 @@ func (x *DeleteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRequest.ProtoReflect.Descriptor instead.
 func (*DeleteRequest) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{14}
+	return file_sink_sink_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *DeleteRequest) GetCompletionMode() CompletionMode {
@@ -1280,7 +1219,7 @@ type DeleteOperation struct {
 
 func (x *DeleteOperation) Reset() {
 	*x = DeleteOperation{}
-	mi := &file_sink_sink_proto_msgTypes[15]
+	mi := &file_sink_sink_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1292,7 +1231,7 @@ func (x *DeleteOperation) String() string {
 func (*DeleteOperation) ProtoMessage() {}
 
 func (x *DeleteOperation) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[15]
+	mi := &file_sink_sink_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1305,7 +1244,7 @@ func (x *DeleteOperation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteOperation.ProtoReflect.Descriptor instead.
 func (*DeleteOperation) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{15}
+	return file_sink_sink_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *DeleteOperation) GetAddress() *RecordAddress {
@@ -1324,7 +1263,7 @@ type DeleteResponse struct {
 
 func (x *DeleteResponse) Reset() {
 	*x = DeleteResponse{}
-	mi := &file_sink_sink_proto_msgTypes[16]
+	mi := &file_sink_sink_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1336,7 +1275,7 @@ func (x *DeleteResponse) String() string {
 func (*DeleteResponse) ProtoMessage() {}
 
 func (x *DeleteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[16]
+	mi := &file_sink_sink_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1349,7 +1288,7 @@ func (x *DeleteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteResponse.ProtoReflect.Descriptor instead.
 func (*DeleteResponse) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{16}
+	return file_sink_sink_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *DeleteResponse) GetResults() []*DeleteResult {
@@ -1370,7 +1309,7 @@ type DeleteResult struct {
 
 func (x *DeleteResult) Reset() {
 	*x = DeleteResult{}
-	mi := &file_sink_sink_proto_msgTypes[17]
+	mi := &file_sink_sink_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1382,7 +1321,7 @@ func (x *DeleteResult) String() string {
 func (*DeleteResult) ProtoMessage() {}
 
 func (x *DeleteResult) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[17]
+	mi := &file_sink_sink_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1395,7 +1334,7 @@ func (x *DeleteResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteResult.ProtoReflect.Descriptor instead.
 func (*DeleteResult) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{17}
+	return file_sink_sink_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *DeleteResult) GetOperationIndex() uint32 {
@@ -1430,7 +1369,7 @@ type Failure struct {
 
 func (x *Failure) Reset() {
 	*x = Failure{}
-	mi := &file_sink_sink_proto_msgTypes[18]
+	mi := &file_sink_sink_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1442,7 +1381,7 @@ func (x *Failure) String() string {
 func (*Failure) ProtoMessage() {}
 
 func (x *Failure) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[18]
+	mi := &file_sink_sink_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1455,7 +1394,7 @@ func (x *Failure) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Failure.ProtoReflect.Descriptor instead.
 func (*Failure) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{18}
+	return file_sink_sink_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *Failure) GetCode() FailureCode {
@@ -1508,7 +1447,7 @@ type Command struct {
 
 func (x *Command) Reset() {
 	*x = Command{}
-	mi := &file_sink_sink_proto_msgTypes[19]
+	mi := &file_sink_sink_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1520,7 +1459,7 @@ func (x *Command) String() string {
 func (*Command) ProtoMessage() {}
 
 func (x *Command) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[19]
+	mi := &file_sink_sink_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1533,7 +1472,7 @@ func (x *Command) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Command.ProtoReflect.Descriptor instead.
 func (*Command) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{19}
+	return file_sink_sink_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *Command) GetUri() string {
@@ -1595,7 +1534,7 @@ type Header struct {
 
 func (x *Header) Reset() {
 	*x = Header{}
-	mi := &file_sink_sink_proto_msgTypes[20]
+	mi := &file_sink_sink_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1607,7 +1546,7 @@ func (x *Header) String() string {
 func (*Header) ProtoMessage() {}
 
 func (x *Header) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[20]
+	mi := &file_sink_sink_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1620,7 +1559,7 @@ func (x *Header) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Header.ProtoReflect.Descriptor instead.
 func (*Header) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{20}
+	return file_sink_sink_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *Header) GetName() string {
@@ -1656,7 +1595,7 @@ type ExecuteRequest struct {
 
 func (x *ExecuteRequest) Reset() {
 	*x = ExecuteRequest{}
-	mi := &file_sink_sink_proto_msgTypes[21]
+	mi := &file_sink_sink_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1668,7 +1607,7 @@ func (x *ExecuteRequest) String() string {
 func (*ExecuteRequest) ProtoMessage() {}
 
 func (x *ExecuteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[21]
+	mi := &file_sink_sink_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1681,7 +1620,7 @@ func (x *ExecuteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecuteRequest.ProtoReflect.Descriptor instead.
 func (*ExecuteRequest) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{21}
+	return file_sink_sink_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ExecuteRequest) GetCommand() *Command {
@@ -1712,7 +1651,7 @@ type ExecuteResponse struct {
 
 func (x *ExecuteResponse) Reset() {
 	*x = ExecuteResponse{}
-	mi := &file_sink_sink_proto_msgTypes[22]
+	mi := &file_sink_sink_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1724,7 +1663,7 @@ func (x *ExecuteResponse) String() string {
 func (*ExecuteResponse) ProtoMessage() {}
 
 func (x *ExecuteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[22]
+	mi := &file_sink_sink_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1737,7 +1676,7 @@ func (x *ExecuteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecuteResponse.ProtoReflect.Descriptor instead.
 func (*ExecuteResponse) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{22}
+	return file_sink_sink_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ExecuteResponse) GetContentType() string {
@@ -1802,7 +1741,7 @@ type QueryRequest struct {
 
 func (x *QueryRequest) Reset() {
 	*x = QueryRequest{}
-	mi := &file_sink_sink_proto_msgTypes[23]
+	mi := &file_sink_sink_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1814,7 +1753,7 @@ func (x *QueryRequest) String() string {
 func (*QueryRequest) ProtoMessage() {}
 
 func (x *QueryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[23]
+	mi := &file_sink_sink_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1827,7 +1766,7 @@ func (x *QueryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryRequest.ProtoReflect.Descriptor instead.
 func (*QueryRequest) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{23}
+	return file_sink_sink_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *QueryRequest) GetCommand() *Command {
@@ -1875,7 +1814,7 @@ type SortField struct {
 
 func (x *SortField) Reset() {
 	*x = SortField{}
-	mi := &file_sink_sink_proto_msgTypes[24]
+	mi := &file_sink_sink_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1887,7 +1826,7 @@ func (x *SortField) String() string {
 func (*SortField) ProtoMessage() {}
 
 func (x *SortField) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[24]
+	mi := &file_sink_sink_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1900,7 +1839,7 @@ func (x *SortField) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SortField.ProtoReflect.Descriptor instead.
 func (*SortField) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{24}
+	return file_sink_sink_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *SortField) GetField() string {
@@ -1931,7 +1870,7 @@ type Projection struct {
 
 func (x *Projection) Reset() {
 	*x = Projection{}
-	mi := &file_sink_sink_proto_msgTypes[25]
+	mi := &file_sink_sink_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1943,7 +1882,7 @@ func (x *Projection) String() string {
 func (*Projection) ProtoMessage() {}
 
 func (x *Projection) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[25]
+	mi := &file_sink_sink_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1956,7 +1895,7 @@ func (x *Projection) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Projection.ProtoReflect.Descriptor instead.
 func (*Projection) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{25}
+	return file_sink_sink_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *Projection) GetFields() []string {
@@ -1989,7 +1928,7 @@ type QueryResponse struct {
 
 func (x *QueryResponse) Reset() {
 	*x = QueryResponse{}
-	mi := &file_sink_sink_proto_msgTypes[26]
+	mi := &file_sink_sink_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2001,7 +1940,7 @@ func (x *QueryResponse) String() string {
 func (*QueryResponse) ProtoMessage() {}
 
 func (x *QueryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[26]
+	mi := &file_sink_sink_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2014,7 +1953,7 @@ func (x *QueryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryResponse.ProtoReflect.Descriptor instead.
 func (*QueryResponse) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{26}
+	return file_sink_sink_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *QueryResponse) GetDocuments() []*Document {
@@ -2055,7 +1994,7 @@ type CountRequest struct {
 
 func (x *CountRequest) Reset() {
 	*x = CountRequest{}
-	mi := &file_sink_sink_proto_msgTypes[27]
+	mi := &file_sink_sink_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2067,7 +2006,7 @@ func (x *CountRequest) String() string {
 func (*CountRequest) ProtoMessage() {}
 
 func (x *CountRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[27]
+	mi := &file_sink_sink_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2080,7 +2019,7 @@ func (x *CountRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CountRequest.ProtoReflect.Descriptor instead.
 func (*CountRequest) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{27}
+	return file_sink_sink_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *CountRequest) GetCommand() *Command {
@@ -2101,7 +2040,7 @@ type CountResponse struct {
 
 func (x *CountResponse) Reset() {
 	*x = CountResponse{}
-	mi := &file_sink_sink_proto_msgTypes[28]
+	mi := &file_sink_sink_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2113,7 +2052,7 @@ func (x *CountResponse) String() string {
 func (*CountResponse) ProtoMessage() {}
 
 func (x *CountResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[28]
+	mi := &file_sink_sink_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2126,7 +2065,7 @@ func (x *CountResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CountResponse.ProtoReflect.Descriptor instead.
 func (*CountResponse) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{28}
+	return file_sink_sink_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *CountResponse) GetCount() uint64 {
@@ -2167,7 +2106,7 @@ type ScanRequest struct {
 
 func (x *ScanRequest) Reset() {
 	*x = ScanRequest{}
-	mi := &file_sink_sink_proto_msgTypes[29]
+	mi := &file_sink_sink_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2179,7 +2118,7 @@ func (x *ScanRequest) String() string {
 func (*ScanRequest) ProtoMessage() {}
 
 func (x *ScanRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[29]
+	mi := &file_sink_sink_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2192,7 +2131,7 @@ func (x *ScanRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScanRequest.ProtoReflect.Descriptor instead.
 func (*ScanRequest) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{29}
+	return file_sink_sink_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *ScanRequest) GetCommand() *Command {
@@ -2241,7 +2180,7 @@ type ScanResponse struct {
 
 func (x *ScanResponse) Reset() {
 	*x = ScanResponse{}
-	mi := &file_sink_sink_proto_msgTypes[30]
+	mi := &file_sink_sink_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2253,7 +2192,7 @@ func (x *ScanResponse) String() string {
 func (*ScanResponse) ProtoMessage() {}
 
 func (x *ScanResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_sink_sink_proto_msgTypes[30]
+	mi := &file_sink_sink_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2266,7 +2205,7 @@ func (x *ScanResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ScanResponse.ProtoReflect.Descriptor instead.
 func (*ScanResponse) Descriptor() ([]byte, []int) {
-	return file_sink_sink_proto_rawDescGZIP(), []int{30}
+	return file_sink_sink_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *ScanResponse) GetDocuments() []*Document {
@@ -2299,9 +2238,7 @@ const file_sink_sink_proto_rawDesc = "" +
 	"\x03uri\x18\x01 \x01(\tR\x03uri\"[\n" +
 	"\bDocument\x125\n" +
 	"\bencoding\x18\x01 \x01(\x0e2\x19.sink.v1.DocumentEncodingR\bencoding\x12\x18\n" +
-	"\apayload\x18\x02 \x01(\fR\apayload\"#\n" +
-	"\rRevisionToken\x12\x12\n" +
-	"\x04data\x18\x01 \x01(\fR\x04data\"E\n" +
+	"\apayload\x18\x02 \x01(\fR\apayload\"E\n" +
 	"\vReadRequest\x126\n" +
 	"\n" +
 	"operations\x18\x01 \x03(\v2\x16.sink.v1.ReadOperationR\n" +
@@ -2309,13 +2246,12 @@ const file_sink_sink_proto_rawDesc = "" +
 	"\rReadOperation\x120\n" +
 	"\aaddress\x18\x01 \x01(\v2\x16.sink.v1.RecordAddressR\aaddress\"=\n" +
 	"\fReadResponse\x12-\n" +
-	"\aresults\x18\x01 \x03(\v2\x13.sink.v1.ReadResultR\aresults\"\xf1\x01\n" +
+	"\aresults\x18\x01 \x03(\v2\x13.sink.v1.ReadResultR\aresults\"\xbd\x01\n" +
 	"\n" +
 	"ReadResult\x12'\n" +
 	"\x0foperation_index\x18\x01 \x01(\rR\x0eoperationIndex\x12+\n" +
 	"\x06status\x18\x02 \x01(\x0e2\x13.sink.v1.ReadStatusR\x06status\x12-\n" +
-	"\bdocument\x18\x03 \x01(\v2\x11.sink.v1.DocumentR\bdocument\x122\n" +
-	"\brevision\x18\x04 \x01(\v2\x16.sink.v1.RevisionTokenR\brevision\x12*\n" +
+	"\bdocument\x18\x03 \x01(\v2\x11.sink.v1.DocumentR\bdocument\x12*\n" +
 	"\afailure\x18\x05 \x01(\v2\x10.sink.v1.FailureR\afailure\"\xc1\x01\n" +
 	"\fWriteRequest\x12@\n" +
 	"\x0fcompletion_mode\x18\x01 \x01(\x0e2\x17.sink.v1.CompletionModeR\x0ecompletionMode\x127\n" +
@@ -2341,11 +2277,10 @@ const file_sink_sink_proto_rawDesc = "" +
 	"\x06source\x18\x01 \x01(\fR\x06source\x12\x16\n" +
 	"\x06sha256\x18\x02 \x01(\fR\x06sha256\"?\n" +
 	"\rWriteResponse\x12.\n" +
-	"\aresults\x18\x01 \x03(\v2\x14.sink.v1.WriteResultR\aresults\"\xf3\x01\n" +
+	"\aresults\x18\x01 \x03(\v2\x14.sink.v1.WriteResultR\aresults\"\xbf\x01\n" +
 	"\vWriteResult\x12'\n" +
 	"\x0foperation_index\x18\x01 \x01(\rR\x0eoperationIndex\x12,\n" +
-	"\x06status\x18\x02 \x01(\x0e2\x14.sink.v1.WriteStatusR\x06status\x122\n" +
-	"\brevision\x18\x03 \x01(\v2\x16.sink.v1.RevisionTokenR\brevision\x12*\n" +
+	"\x06status\x18\x02 \x01(\x0e2\x14.sink.v1.WriteStatusR\x06status\x12*\n" +
 	"\afailure\x18\x04 \x01(\v2\x10.sink.v1.FailureR\afailure\x12-\n" +
 	"\bdocument\x18\x05 \x01(\v2\x11.sink.v1.DocumentR\bdocument\"\x8b\x01\n" +
 	"\rDeleteRequest\x12@\n" +
@@ -2487,7 +2422,7 @@ func file_sink_sink_proto_rawDescGZIP() []byte {
 }
 
 var file_sink_sink_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
-var file_sink_sink_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
+var file_sink_sink_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
 var file_sink_sink_proto_goTypes = []any{
 	(DocumentEncoding)(0),   // 0: sink.v1.DocumentEncoding
 	(CompletionMode)(0),     // 1: sink.v1.CompletionMode
@@ -2498,97 +2433,94 @@ var file_sink_sink_proto_goTypes = []any{
 	(FailureCode)(0),        // 6: sink.v1.FailureCode
 	(*RecordAddress)(nil),   // 7: sink.v1.RecordAddress
 	(*Document)(nil),        // 8: sink.v1.Document
-	(*RevisionToken)(nil),   // 9: sink.v1.RevisionToken
-	(*ReadRequest)(nil),     // 10: sink.v1.ReadRequest
-	(*ReadOperation)(nil),   // 11: sink.v1.ReadOperation
-	(*ReadResponse)(nil),    // 12: sink.v1.ReadResponse
-	(*ReadResult)(nil),      // 13: sink.v1.ReadResult
-	(*WriteRequest)(nil),    // 14: sink.v1.WriteRequest
-	(*WriteOperation)(nil),  // 15: sink.v1.WriteOperation
-	(*PutOperation)(nil),    // 16: sink.v1.PutOperation
-	(*MergeOperation)(nil),  // 17: sink.v1.MergeOperation
-	(*LuaProgram)(nil),      // 18: sink.v1.LuaProgram
-	(*WriteResponse)(nil),   // 19: sink.v1.WriteResponse
-	(*WriteResult)(nil),     // 20: sink.v1.WriteResult
-	(*DeleteRequest)(nil),   // 21: sink.v1.DeleteRequest
-	(*DeleteOperation)(nil), // 22: sink.v1.DeleteOperation
-	(*DeleteResponse)(nil),  // 23: sink.v1.DeleteResponse
-	(*DeleteResult)(nil),    // 24: sink.v1.DeleteResult
-	(*Failure)(nil),         // 25: sink.v1.Failure
-	(*Command)(nil),         // 26: sink.v1.Command
-	(*Header)(nil),          // 27: sink.v1.Header
-	(*ExecuteRequest)(nil),  // 28: sink.v1.ExecuteRequest
-	(*ExecuteResponse)(nil), // 29: sink.v1.ExecuteResponse
-	(*QueryRequest)(nil),    // 30: sink.v1.QueryRequest
-	(*SortField)(nil),       // 31: sink.v1.SortField
-	(*Projection)(nil),      // 32: sink.v1.Projection
-	(*QueryResponse)(nil),   // 33: sink.v1.QueryResponse
-	(*CountRequest)(nil),    // 34: sink.v1.CountRequest
-	(*CountResponse)(nil),   // 35: sink.v1.CountResponse
-	(*ScanRequest)(nil),     // 36: sink.v1.ScanRequest
-	(*ScanResponse)(nil),    // 37: sink.v1.ScanResponse
+	(*ReadRequest)(nil),     // 9: sink.v1.ReadRequest
+	(*ReadOperation)(nil),   // 10: sink.v1.ReadOperation
+	(*ReadResponse)(nil),    // 11: sink.v1.ReadResponse
+	(*ReadResult)(nil),      // 12: sink.v1.ReadResult
+	(*WriteRequest)(nil),    // 13: sink.v1.WriteRequest
+	(*WriteOperation)(nil),  // 14: sink.v1.WriteOperation
+	(*PutOperation)(nil),    // 15: sink.v1.PutOperation
+	(*MergeOperation)(nil),  // 16: sink.v1.MergeOperation
+	(*LuaProgram)(nil),      // 17: sink.v1.LuaProgram
+	(*WriteResponse)(nil),   // 18: sink.v1.WriteResponse
+	(*WriteResult)(nil),     // 19: sink.v1.WriteResult
+	(*DeleteRequest)(nil),   // 20: sink.v1.DeleteRequest
+	(*DeleteOperation)(nil), // 21: sink.v1.DeleteOperation
+	(*DeleteResponse)(nil),  // 22: sink.v1.DeleteResponse
+	(*DeleteResult)(nil),    // 23: sink.v1.DeleteResult
+	(*Failure)(nil),         // 24: sink.v1.Failure
+	(*Command)(nil),         // 25: sink.v1.Command
+	(*Header)(nil),          // 26: sink.v1.Header
+	(*ExecuteRequest)(nil),  // 27: sink.v1.ExecuteRequest
+	(*ExecuteResponse)(nil), // 28: sink.v1.ExecuteResponse
+	(*QueryRequest)(nil),    // 29: sink.v1.QueryRequest
+	(*SortField)(nil),       // 30: sink.v1.SortField
+	(*Projection)(nil),      // 31: sink.v1.Projection
+	(*QueryResponse)(nil),   // 32: sink.v1.QueryResponse
+	(*CountRequest)(nil),    // 33: sink.v1.CountRequest
+	(*CountResponse)(nil),   // 34: sink.v1.CountResponse
+	(*ScanRequest)(nil),     // 35: sink.v1.ScanRequest
+	(*ScanResponse)(nil),    // 36: sink.v1.ScanResponse
 }
 var file_sink_sink_proto_depIdxs = []int32{
 	0,  // 0: sink.v1.Document.encoding:type_name -> sink.v1.DocumentEncoding
-	11, // 1: sink.v1.ReadRequest.operations:type_name -> sink.v1.ReadOperation
+	10, // 1: sink.v1.ReadRequest.operations:type_name -> sink.v1.ReadOperation
 	7,  // 2: sink.v1.ReadOperation.address:type_name -> sink.v1.RecordAddress
-	13, // 3: sink.v1.ReadResponse.results:type_name -> sink.v1.ReadResult
+	12, // 3: sink.v1.ReadResponse.results:type_name -> sink.v1.ReadResult
 	2,  // 4: sink.v1.ReadResult.status:type_name -> sink.v1.ReadStatus
 	8,  // 5: sink.v1.ReadResult.document:type_name -> sink.v1.Document
-	9,  // 6: sink.v1.ReadResult.revision:type_name -> sink.v1.RevisionToken
-	25, // 7: sink.v1.ReadResult.failure:type_name -> sink.v1.Failure
-	1,  // 8: sink.v1.WriteRequest.completion_mode:type_name -> sink.v1.CompletionMode
-	15, // 9: sink.v1.WriteRequest.operations:type_name -> sink.v1.WriteOperation
-	18, // 10: sink.v1.WriteRequest.lua_programs:type_name -> sink.v1.LuaProgram
-	7,  // 11: sink.v1.WriteOperation.address:type_name -> sink.v1.RecordAddress
-	16, // 12: sink.v1.WriteOperation.put:type_name -> sink.v1.PutOperation
-	17, // 13: sink.v1.WriteOperation.merge:type_name -> sink.v1.MergeOperation
-	8,  // 14: sink.v1.PutOperation.document:type_name -> sink.v1.Document
-	3,  // 15: sink.v1.PutOperation.mode:type_name -> sink.v1.WriteMode
-	8,  // 16: sink.v1.MergeOperation.incoming_document:type_name -> sink.v1.Document
-	18, // 17: sink.v1.MergeOperation.lua_program:type_name -> sink.v1.LuaProgram
-	20, // 18: sink.v1.WriteResponse.results:type_name -> sink.v1.WriteResult
-	4,  // 19: sink.v1.WriteResult.status:type_name -> sink.v1.WriteStatus
-	9,  // 20: sink.v1.WriteResult.revision:type_name -> sink.v1.RevisionToken
-	25, // 21: sink.v1.WriteResult.failure:type_name -> sink.v1.Failure
-	8,  // 22: sink.v1.WriteResult.document:type_name -> sink.v1.Document
-	1,  // 23: sink.v1.DeleteRequest.completion_mode:type_name -> sink.v1.CompletionMode
-	22, // 24: sink.v1.DeleteRequest.operations:type_name -> sink.v1.DeleteOperation
-	7,  // 25: sink.v1.DeleteOperation.address:type_name -> sink.v1.RecordAddress
-	24, // 26: sink.v1.DeleteResponse.results:type_name -> sink.v1.DeleteResult
-	5,  // 27: sink.v1.DeleteResult.status:type_name -> sink.v1.DeleteStatus
-	25, // 28: sink.v1.DeleteResult.failure:type_name -> sink.v1.Failure
-	6,  // 29: sink.v1.Failure.code:type_name -> sink.v1.FailureCode
-	27, // 30: sink.v1.Command.headers:type_name -> sink.v1.Header
-	26, // 31: sink.v1.ExecuteRequest.command:type_name -> sink.v1.Command
-	27, // 32: sink.v1.ExecuteResponse.headers:type_name -> sink.v1.Header
-	26, // 33: sink.v1.QueryRequest.command:type_name -> sink.v1.Command
-	31, // 34: sink.v1.QueryRequest.sort:type_name -> sink.v1.SortField
-	32, // 35: sink.v1.QueryRequest.projection:type_name -> sink.v1.Projection
-	8,  // 36: sink.v1.QueryResponse.documents:type_name -> sink.v1.Document
-	26, // 37: sink.v1.CountRequest.command:type_name -> sink.v1.Command
-	26, // 38: sink.v1.ScanRequest.command:type_name -> sink.v1.Command
-	32, // 39: sink.v1.ScanRequest.projection:type_name -> sink.v1.Projection
-	8,  // 40: sink.v1.ScanResponse.documents:type_name -> sink.v1.Document
-	10, // 41: sink.v1.Sink.Read:input_type -> sink.v1.ReadRequest
-	14, // 42: sink.v1.Sink.Write:input_type -> sink.v1.WriteRequest
-	21, // 43: sink.v1.Sink.Delete:input_type -> sink.v1.DeleteRequest
-	28, // 44: sink.v1.Sink.Execute:input_type -> sink.v1.ExecuteRequest
-	30, // 45: sink.v1.Sink.Query:input_type -> sink.v1.QueryRequest
-	34, // 46: sink.v1.Sink.Count:input_type -> sink.v1.CountRequest
-	36, // 47: sink.v1.Sink.Scan:input_type -> sink.v1.ScanRequest
-	12, // 48: sink.v1.Sink.Read:output_type -> sink.v1.ReadResponse
-	19, // 49: sink.v1.Sink.Write:output_type -> sink.v1.WriteResponse
-	23, // 50: sink.v1.Sink.Delete:output_type -> sink.v1.DeleteResponse
-	29, // 51: sink.v1.Sink.Execute:output_type -> sink.v1.ExecuteResponse
-	33, // 52: sink.v1.Sink.Query:output_type -> sink.v1.QueryResponse
-	35, // 53: sink.v1.Sink.Count:output_type -> sink.v1.CountResponse
-	37, // 54: sink.v1.Sink.Scan:output_type -> sink.v1.ScanResponse
-	48, // [48:55] is the sub-list for method output_type
-	41, // [41:48] is the sub-list for method input_type
-	41, // [41:41] is the sub-list for extension type_name
-	41, // [41:41] is the sub-list for extension extendee
-	0,  // [0:41] is the sub-list for field type_name
+	24, // 6: sink.v1.ReadResult.failure:type_name -> sink.v1.Failure
+	1,  // 7: sink.v1.WriteRequest.completion_mode:type_name -> sink.v1.CompletionMode
+	14, // 8: sink.v1.WriteRequest.operations:type_name -> sink.v1.WriteOperation
+	17, // 9: sink.v1.WriteRequest.lua_programs:type_name -> sink.v1.LuaProgram
+	7,  // 10: sink.v1.WriteOperation.address:type_name -> sink.v1.RecordAddress
+	15, // 11: sink.v1.WriteOperation.put:type_name -> sink.v1.PutOperation
+	16, // 12: sink.v1.WriteOperation.merge:type_name -> sink.v1.MergeOperation
+	8,  // 13: sink.v1.PutOperation.document:type_name -> sink.v1.Document
+	3,  // 14: sink.v1.PutOperation.mode:type_name -> sink.v1.WriteMode
+	8,  // 15: sink.v1.MergeOperation.incoming_document:type_name -> sink.v1.Document
+	17, // 16: sink.v1.MergeOperation.lua_program:type_name -> sink.v1.LuaProgram
+	19, // 17: sink.v1.WriteResponse.results:type_name -> sink.v1.WriteResult
+	4,  // 18: sink.v1.WriteResult.status:type_name -> sink.v1.WriteStatus
+	24, // 19: sink.v1.WriteResult.failure:type_name -> sink.v1.Failure
+	8,  // 20: sink.v1.WriteResult.document:type_name -> sink.v1.Document
+	1,  // 21: sink.v1.DeleteRequest.completion_mode:type_name -> sink.v1.CompletionMode
+	21, // 22: sink.v1.DeleteRequest.operations:type_name -> sink.v1.DeleteOperation
+	7,  // 23: sink.v1.DeleteOperation.address:type_name -> sink.v1.RecordAddress
+	23, // 24: sink.v1.DeleteResponse.results:type_name -> sink.v1.DeleteResult
+	5,  // 25: sink.v1.DeleteResult.status:type_name -> sink.v1.DeleteStatus
+	24, // 26: sink.v1.DeleteResult.failure:type_name -> sink.v1.Failure
+	6,  // 27: sink.v1.Failure.code:type_name -> sink.v1.FailureCode
+	26, // 28: sink.v1.Command.headers:type_name -> sink.v1.Header
+	25, // 29: sink.v1.ExecuteRequest.command:type_name -> sink.v1.Command
+	26, // 30: sink.v1.ExecuteResponse.headers:type_name -> sink.v1.Header
+	25, // 31: sink.v1.QueryRequest.command:type_name -> sink.v1.Command
+	30, // 32: sink.v1.QueryRequest.sort:type_name -> sink.v1.SortField
+	31, // 33: sink.v1.QueryRequest.projection:type_name -> sink.v1.Projection
+	8,  // 34: sink.v1.QueryResponse.documents:type_name -> sink.v1.Document
+	25, // 35: sink.v1.CountRequest.command:type_name -> sink.v1.Command
+	25, // 36: sink.v1.ScanRequest.command:type_name -> sink.v1.Command
+	31, // 37: sink.v1.ScanRequest.projection:type_name -> sink.v1.Projection
+	8,  // 38: sink.v1.ScanResponse.documents:type_name -> sink.v1.Document
+	9,  // 39: sink.v1.Sink.Read:input_type -> sink.v1.ReadRequest
+	13, // 40: sink.v1.Sink.Write:input_type -> sink.v1.WriteRequest
+	20, // 41: sink.v1.Sink.Delete:input_type -> sink.v1.DeleteRequest
+	27, // 42: sink.v1.Sink.Execute:input_type -> sink.v1.ExecuteRequest
+	29, // 43: sink.v1.Sink.Query:input_type -> sink.v1.QueryRequest
+	33, // 44: sink.v1.Sink.Count:input_type -> sink.v1.CountRequest
+	35, // 45: sink.v1.Sink.Scan:input_type -> sink.v1.ScanRequest
+	11, // 46: sink.v1.Sink.Read:output_type -> sink.v1.ReadResponse
+	18, // 47: sink.v1.Sink.Write:output_type -> sink.v1.WriteResponse
+	22, // 48: sink.v1.Sink.Delete:output_type -> sink.v1.DeleteResponse
+	28, // 49: sink.v1.Sink.Execute:output_type -> sink.v1.ExecuteResponse
+	32, // 50: sink.v1.Sink.Query:output_type -> sink.v1.QueryResponse
+	34, // 51: sink.v1.Sink.Count:output_type -> sink.v1.CountResponse
+	36, // 52: sink.v1.Sink.Scan:output_type -> sink.v1.ScanResponse
+	46, // [46:53] is the sub-list for method output_type
+	39, // [39:46] is the sub-list for method input_type
+	39, // [39:39] is the sub-list for extension type_name
+	39, // [39:39] is the sub-list for extension extendee
+	0,  // [0:39] is the sub-list for field type_name
 }
 
 func init() { file_sink_sink_proto_init() }
@@ -2596,7 +2528,7 @@ func file_sink_sink_proto_init() {
 	if File_sink_sink_proto != nil {
 		return
 	}
-	file_sink_sink_proto_msgTypes[8].OneofWrappers = []any{
+	file_sink_sink_proto_msgTypes[7].OneofWrappers = []any{
 		(*WriteOperation_Put)(nil),
 		(*WriteOperation_Merge)(nil),
 	}
@@ -2606,7 +2538,7 @@ func file_sink_sink_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_sink_sink_proto_rawDesc), len(file_sink_sink_proto_rawDesc)),
 			NumEnums:      7,
-			NumMessages:   31,
+			NumMessages:   30,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
