@@ -1,7 +1,7 @@
 # sink-go
 
 `sink-go` is the typed, concurrency-safe Go client for the
-[`liran/sink`](https://github.com/liran/sink) gRPC service. It covers the full
+[`batchstream/sink`](https://github.com/batchstream/sink) gRPC service. It covers the full
 batch API: reads, puts, self-contained Lua merges, and hard deletes with synchronous
 or durable asynchronous completion.
 Native `Execute` commands and resumable `Scan` pages use the
@@ -10,7 +10,7 @@ same Sink connection, while returned writes support atomic read-modify-write res
 ## Install
 
 ```shell
-go get github.com/liran/sink-go
+go get github.com/batchstream/sink-go
 ```
 
 The client requires Go 1.27 or newer.
@@ -32,7 +32,7 @@ canonical URI for Engine affinity. All Gateways with the same Engine membership
 select the same Engine for a record. Membership changes may temporarily split
 traffic. No exclusive ownership or cross-replica ordering is promised.
 
-The shared `github.com/liran/sink-go/uri` package builds, parses and validates
+The shared `github.com/batchstream/sink-go/uri` package builds, parses and validates
 URIs. String keys use `s:`, int64 keys `i:`, bytes keys `b:` plus unpadded base64url,
 and opaque keys `o:<base64url type>:<base64url data>`. The builder escapes each
 path segment; encoded slashes are part of a segment. Alternate URI spellings,
@@ -57,7 +57,7 @@ import (
 	"log"
 	"time"
 
-	sink "github.com/liran/sink-go"
+	sink "github.com/batchstream/sink-go"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
@@ -188,7 +188,7 @@ function receives `nil` as `current` and its returned object is created.
 
 The merge function receives only `current` and `incoming`. Sink provides
 versioned `sink.v1` array, object, and retry-stable time helpers. See the
-[Lua merge developer guide](https://github.com/liran/sink/blob/main/docs/lua-merge-guide.md)
+[Lua merge developer guide](https://github.com/batchstream/sink/blob/main/docs/lua-merge-guide.md)
 for the complete function reference and reliability rules.
 
 ## Request helpers and defaults
@@ -393,7 +393,7 @@ operations remain available. Index lifecycle operations, alias changes,
 settings/templates, lifecycle policies and unknown administrative/plugin write
 routes return `INVALID_ARGUMENT` before reaching the backend. GET/HEAD/OPTIONS
 can still inspect native endpoints. See the server's
-[native access contract](https://github.com/liran/sink/blob/main/docs/native-access.md#elasticsearch-and-opensearch-endpoints)
+[native access contract](https://github.com/batchstream/sink/blob/main/docs/native-access.md#elasticsearch-and-opensearch-endpoints)
 for supported routes. This protection requires an updated server; upgrading
 this SDK alone does not restrict older servers. External administration and
 existing lifecycle policies must be coordinated with record clients, which must
@@ -647,7 +647,7 @@ synchronous completion and is rejected with `CompletionReturnAfterAccepted`.
 A timeout can still leave a mutation's outcome unknown; this is not exactly-once
 increment delivery or a multi-document transaction.
 
-See the server's [native access contract](https://github.com/liran/sink/blob/main/docs/native-access.md)
+See the server's [native access contract](https://github.com/batchstream/sink/blob/main/docs/native-access.md)
 for cursor restrictions, native write semantics, raw metadata, byte limits, and
 scan deadlines.
 
@@ -702,11 +702,11 @@ plus accepted requests that still retain an old Engine address snapshot.
 Kubernetes `preStop` is part of the total termination grace period, whereas
 Sink's `shutdown_timeout` bounds gRPC draining after SIGTERM. A refresh interval
 shorter than `preStop` is not sufficient by itself. See the server's
-[rollout timing and qualification guide](https://github.com/liran/sink/blob/main/docs/rolling-upgrades.md).
+[rollout timing and qualification guide](https://github.com/batchstream/sink/blob/main/docs/rolling-upgrades.md).
 
 The URI-only SDK release line starting with v0.8.0 pairs with Sink v0.15.0 or
 later compatible releases. Upgrade the three server roles and clients together
-using the [configuration migration guide](https://github.com/liran/sink/blob/main/docs/configuration-migration.md);
+using the [configuration migration guide](https://github.com/batchstream/sink/blob/main/docs/configuration-migration.md);
 v0.7.x and the earlier multi-Store protocol are not wire-compatible with this line.
 
 Reads retry transport-level `Unavailable` failures and retryable per-operation

@@ -3,7 +3,7 @@ package sink
 import (
 	"fmt"
 
-	sinkv1 "github.com/liran/sink-go/api/sink/v1"
+	sinkv1 "github.com/batchstream/sink-go/api/sink/v1"
 )
 
 func decodeReadResult(protoResult *sinkv1.ReadResult, index int) (ReadResult, error) {

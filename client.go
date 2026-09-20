@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	sinkv1 "github.com/liran/sink-go/api/sink/v1"
+	sinkv1 "github.com/batchstream/sink-go/api/sink/v1"
 	"google.golang.org/grpc"
 	_ "google.golang.org/grpc/balancer/roundrobin"
 	"google.golang.org/grpc/codes"

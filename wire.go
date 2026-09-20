@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 
-	sinkv1 "github.com/liran/sink-go/api/sink/v1"
+	sinkv1 "github.com/batchstream/sink-go/api/sink/v1"
 )
 
 func (a Address) toProto() *sinkv1.RecordAddress {

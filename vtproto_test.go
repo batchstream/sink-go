@@ -3,10 +3,10 @@ package sink
 import (
 	"testing"
 
-	"github.com/liran/sink-go/internal/testuri"
-	"github.com/liran/sink-go/uri"
+	"github.com/batchstream/sink-go/internal/testuri"
+	"github.com/batchstream/sink-go/uri"
 
-	sinkv1 "github.com/liran/sink-go/api/sink/v1"
+	sinkv1 "github.com/batchstream/sink-go/api/sink/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/encoding"
 )

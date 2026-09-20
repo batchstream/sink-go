@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/liran/sink-go/internal/testuri"
+	"github.com/batchstream/sink-go/internal/testuri"
 
-	sink "github.com/liran/sink-go"
+	sink "github.com/batchstream/sink-go"
 	"google.golang.org/grpc/credentials/insecure"
 )
 

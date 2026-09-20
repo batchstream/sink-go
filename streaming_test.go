@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	sink "github.com/liran/sink-go"
-	sinkv1 "github.com/liran/sink-go/api/sink/v1"
+	sink "github.com/batchstream/sink-go"
+	sinkv1 "github.com/batchstream/sink-go/api/sink/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
