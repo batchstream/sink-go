@@ -103,15 +103,15 @@ message WriteRequest {
 message WriteOperation {
   RecordAddress address = 1;
 
-  // Return the logical document submitted by this operation after its commit.
-  // Only synchronous completion modes support this. These operations do not
-  // share a folded commit with preceding or following operations.
-  bool return_document = 4;
-
   oneof action {
     PutOperation put = 2;
     MergeOperation merge = 3;
   }
+
+  // Return the logical document submitted by this operation after its commit.
+  // Only synchronous completion modes support this. These operations do not
+  // share a folded commit with preceding or following operations.
+  bool return_document = 4;
 }
 
 // PutOperation writes a complete user document without interpreting its fields.
@@ -331,13 +331,13 @@ message Projection {
 // Document frames contain one document. A final, document-free frame sets
 // complete and has_more. Metadata is valid only after successful EOF.
 message QueryResponse {
-  bool complete = 3;
   repeated Document documents = 1;
 
   // Determined by fetching one extra result, not by running Count. Result-window
   // limits apply to this extra result too. A byte limit fails the whole request;
   // it never produces a silently shortened page.
   bool has_more = 2;
+  bool complete = 3;
 }
 
 // Count is an independent query, not an implicit part of Query. It accepts the
@@ -386,10 +386,10 @@ message ScanRequest {
 // Document frames contain one document. A final, document-free frame sets
 // complete and next_cursor. Checkpoint only after successful EOF.
 message ScanResponse {
-  bool complete = 3;
   repeated Document documents = 1;
 
   // Empty means the scan reached the end observed by this request. Commit a
   // checkpoint only after processing documents and successful EOF. No close RPC is needed.
   bytes next_cursor = 2;
+  bool complete = 3;
 }

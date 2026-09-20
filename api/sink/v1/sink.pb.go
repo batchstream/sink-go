@@ -832,17 +832,17 @@ func (x *WriteRequest) GetLuaPrograms() []*LuaProgram {
 type WriteOperation struct {
 	state   protoimpl.MessageState `protogen:"open.v1"`
 	Address *RecordAddress         `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
-	// Return the logical document submitted by this operation after its commit.
-	// Only synchronous completion modes support this. These operations do not
-	// share a folded commit with preceding or following operations.
-	ReturnDocument bool `protobuf:"varint,4,opt,name=return_document,json=returnDocument,proto3" json:"return_document,omitempty"`
 	// Types that are valid to be assigned to Action:
 	//
 	//	*WriteOperation_Put
 	//	*WriteOperation_Merge
-	Action        isWriteOperation_Action `protobuf_oneof:"action"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Action isWriteOperation_Action `protobuf_oneof:"action"`
+	// Return the logical document submitted by this operation after its commit.
+	// Only synchronous completion modes support this. These operations do not
+	// share a folded commit with preceding or following operations.
+	ReturnDocument bool `protobuf:"varint,4,opt,name=return_document,json=returnDocument,proto3" json:"return_document,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *WriteOperation) Reset() {
@@ -882,13 +882,6 @@ func (x *WriteOperation) GetAddress() *RecordAddress {
 	return nil
 }
 
-func (x *WriteOperation) GetReturnDocument() bool {
-	if x != nil {
-		return x.ReturnDocument
-	}
-	return false
-}
-
 func (x *WriteOperation) GetAction() isWriteOperation_Action {
 	if x != nil {
 		return x.Action
@@ -912,6 +905,13 @@ func (x *WriteOperation) GetMerge() *MergeOperation {
 		}
 	}
 	return nil
+}
+
+func (x *WriteOperation) GetReturnDocument() bool {
+	if x != nil {
+		return x.ReturnDocument
+	}
+	return false
 }
 
 type isWriteOperation_Action interface {
@@ -1977,12 +1977,12 @@ func (x *Projection) GetExclude() bool {
 // complete and has_more. Metadata is valid only after successful EOF.
 type QueryResponse struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
-	Complete  bool                   `protobuf:"varint,3,opt,name=complete,proto3" json:"complete,omitempty"`
 	Documents []*Document            `protobuf:"bytes,1,rep,name=documents,proto3" json:"documents,omitempty"`
 	// Determined by fetching one extra result, not by running Count. Result-window
 	// limits apply to this extra result too. A byte limit fails the whole request;
 	// it never produces a silently shortened page.
 	HasMore       bool `protobuf:"varint,2,opt,name=has_more,json=hasMore,proto3" json:"has_more,omitempty"`
+	Complete      bool `protobuf:"varint,3,opt,name=complete,proto3" json:"complete,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2017,13 +2017,6 @@ func (*QueryResponse) Descriptor() ([]byte, []int) {
 	return file_sink_sink_proto_rawDescGZIP(), []int{26}
 }
 
-func (x *QueryResponse) GetComplete() bool {
-	if x != nil {
-		return x.Complete
-	}
-	return false
-}
-
 func (x *QueryResponse) GetDocuments() []*Document {
 	if x != nil {
 		return x.Documents
@@ -2034,6 +2027,13 @@ func (x *QueryResponse) GetDocuments() []*Document {
 func (x *QueryResponse) GetHasMore() bool {
 	if x != nil {
 		return x.HasMore
+	}
+	return false
+}
+
+func (x *QueryResponse) GetComplete() bool {
+	if x != nil {
+		return x.Complete
 	}
 	return false
 }
@@ -2230,11 +2230,11 @@ func (x *ScanRequest) GetProjection() *Projection {
 // complete and next_cursor. Checkpoint only after successful EOF.
 type ScanResponse struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
-	Complete  bool                   `protobuf:"varint,3,opt,name=complete,proto3" json:"complete,omitempty"`
 	Documents []*Document            `protobuf:"bytes,1,rep,name=documents,proto3" json:"documents,omitempty"`
 	// Empty means the scan reached the end observed by this request. Commit a
 	// checkpoint only after processing documents and successful EOF. No close RPC is needed.
 	NextCursor    []byte `protobuf:"bytes,2,opt,name=next_cursor,json=nextCursor,proto3" json:"next_cursor,omitempty"`
+	Complete      bool   `protobuf:"varint,3,opt,name=complete,proto3" json:"complete,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2269,13 +2269,6 @@ func (*ScanResponse) Descriptor() ([]byte, []int) {
 	return file_sink_sink_proto_rawDescGZIP(), []int{30}
 }
 
-func (x *ScanResponse) GetComplete() bool {
-	if x != nil {
-		return x.Complete
-	}
-	return false
-}
-
 func (x *ScanResponse) GetDocuments() []*Document {
 	if x != nil {
 		return x.Documents
@@ -2288,6 +2281,13 @@ func (x *ScanResponse) GetNextCursor() []byte {
 		return x.NextCursor
 	}
 	return nil
+}
+
+func (x *ScanResponse) GetComplete() bool {
+	if x != nil {
+		return x.Complete
+	}
+	return false
 }
 
 var File_sink_sink_proto protoreflect.FileDescriptor
@@ -2324,10 +2324,10 @@ const file_sink_sink_proto_rawDesc = "" +
 	"operations\x126\n" +
 	"\flua_programs\x18\x03 \x03(\v2\x13.sink.v1.LuaProgramR\vluaPrograms\"\xd1\x01\n" +
 	"\x0eWriteOperation\x120\n" +
-	"\aaddress\x18\x01 \x01(\v2\x16.sink.v1.RecordAddressR\aaddress\x12'\n" +
-	"\x0freturn_document\x18\x04 \x01(\bR\x0ereturnDocument\x12)\n" +
+	"\aaddress\x18\x01 \x01(\v2\x16.sink.v1.RecordAddressR\aaddress\x12)\n" +
 	"\x03put\x18\x02 \x01(\v2\x15.sink.v1.PutOperationH\x00R\x03put\x12/\n" +
-	"\x05merge\x18\x03 \x01(\v2\x17.sink.v1.MergeOperationH\x00R\x05mergeB\b\n" +
+	"\x05merge\x18\x03 \x01(\v2\x17.sink.v1.MergeOperationH\x00R\x05merge\x12'\n" +
+	"\x0freturn_document\x18\x04 \x01(\bR\x0ereturnDocumentB\b\n" +
 	"\x06action\"e\n" +
 	"\fPutOperation\x12-\n" +
 	"\bdocument\x18\x01 \x01(\v2\x11.sink.v1.DocumentR\bdocument\x12&\n" +
@@ -2402,10 +2402,10 @@ const file_sink_sink_proto_rawDesc = "" +
 	"Projection\x12\x16\n" +
 	"\x06fields\x18\x01 \x03(\tR\x06fields\x12\x18\n" +
 	"\aexclude\x18\x02 \x01(\bR\aexclude\"w\n" +
-	"\rQueryResponse\x12\x1a\n" +
-	"\bcomplete\x18\x03 \x01(\bR\bcomplete\x12/\n" +
+	"\rQueryResponse\x12/\n" +
 	"\tdocuments\x18\x01 \x03(\v2\x11.sink.v1.DocumentR\tdocuments\x12\x19\n" +
-	"\bhas_more\x18\x02 \x01(\bR\ahasMore\":\n" +
+	"\bhas_more\x18\x02 \x01(\bR\ahasMore\x12\x1a\n" +
+	"\bcomplete\x18\x03 \x01(\bR\bcomplete\":\n" +
 	"\fCountRequest\x12*\n" +
 	"\acommand\x18\x01 \x01(\v2\x10.sink.v1.CommandR\acommand\"C\n" +
 	"\rCountResponse\x12\x14\n" +
@@ -2419,11 +2419,11 @@ const file_sink_sink_proto_rawDesc = "" +
 	"\n" +
 	"projection\x18\x04 \x01(\v2\x13.sink.v1.ProjectionR\n" +
 	"projection\"|\n" +
-	"\fScanResponse\x12\x1a\n" +
-	"\bcomplete\x18\x03 \x01(\bR\bcomplete\x12/\n" +
+	"\fScanResponse\x12/\n" +
 	"\tdocuments\x18\x01 \x03(\v2\x11.sink.v1.DocumentR\tdocuments\x12\x1f\n" +
 	"\vnext_cursor\x18\x02 \x01(\fR\n" +
-	"nextCursor*m\n" +
+	"nextCursor\x12\x1a\n" +
+	"\bcomplete\x18\x03 \x01(\bR\bcomplete*m\n" +
 	"\x10DocumentEncoding\x12!\n" +
 	"\x1dDOCUMENT_ENCODING_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16DOCUMENT_ENCODING_JSON\x10\x01\x12\x1a\n" +
