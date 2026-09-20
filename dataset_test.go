@@ -76,15 +76,26 @@ func TestNewDatasetValidatesAndCopiesOptions(t *testing.T) {
 		Key:   sink.StringKey("product-1"),
 		Value: datasetProduct{UID: "product-1", Name: "keyboard"},
 	}
-	_, err = nilDataset.Upsert(t.Context(), sink.CompletionWaitUntilApplied, []sink.Record{record})
+	upsertRequest := sink.DatasetWriteRequest{
+		CompletionMode: sink.CompletionWaitUntilApplied,
+		Records:        []sink.Record{record},
+	}
+	_, err = nilDataset.Upsert(t.Context(), upsertRequest)
 	if err == nil {
 		t.Fatal("Dataset.Upsert() accepted a nil dataset")
 	}
-	_, err = nilDataset.Read(t.Context(), []sink.Key{record.Key})
+	readRequest := sink.DatasetReadRequest{
+		Keys: []sink.Key{record.Key},
+	}
+	_, err = nilDataset.Read(t.Context(), readRequest)
 	if err == nil {
 		t.Fatal("Dataset.Read() accepted a nil dataset")
 	}
-	_, err = dataset.Upsert(t.Context(), 0, []sink.Record{record})
+	upsertRequest2 := sink.DatasetWriteRequest{
+		CompletionMode: 0,
+		Records:        []sink.Record{record},
+	}
+	_, err = dataset.Upsert(t.Context(), upsertRequest2)
 	if err == nil {
 		t.Fatal("Dataset.Upsert() accepted an invalid completion mode")
 	}
@@ -106,7 +117,10 @@ func TestDatasetReadBindsRoutingSplitsBatchesAndPreservesOrder(t *testing.T) {
 		sink.StringKey("product-4"),
 		sink.StringKey("product-5"),
 	}
-	results, err := dataset.Read(t.Context(), keys)
+	readRequest := sink.DatasetReadRequest{
+		Keys: keys,
+	}
+	results, err := dataset.Read(t.Context(), readRequest)
 	if err != nil {
 		t.Fatalf("Dataset.Read() error = %v", err)
 	}
@@ -148,7 +162,10 @@ func TestDatasetReadTreatsNotFoundAsSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewDataset() error = %v", err)
 	}
-	results, err := dataset.Read(t.Context(), []sink.Key{sink.StringKey("missing")})
+	readRequest := sink.DatasetReadRequest{
+		Keys: []sink.Key{sink.StringKey("missing")},
+	}
+	results, err := dataset.Read(t.Context(), readRequest)
 	if err != nil {
 		t.Fatalf("Dataset.Read() error = %v", err)
 	}
@@ -172,10 +189,13 @@ func TestDatasetReadCollectsFailuresAfterRetries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewDataset() error = %v", err)
 	}
+	readRequest := sink.DatasetReadRequest{
+		Keys: []sink.Key{sink.StringKey("unavailable"),
+			sink.StringKey("available")},
+	}
 	results, err := dataset.Read(
 		t.Context(),
-		[]sink.Key{sink.StringKey("unavailable"),
-			sink.StringKey("available")})
+		readRequest)
 	var batchError *sink.BatchError
 	if !errors.As(err, &batchError) || len(batchError.Failures) != 1 ||
 		batchError.Failures[0].OperationIndex != 0 {
@@ -205,11 +225,14 @@ func TestDatasetReadReturnsPartialResultsOnTransportFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewDataset() error = %v", err)
 	}
+	readRequest := sink.DatasetReadRequest{
+		Keys: []sink.Key{sink.StringKey("failed"),
+			sink.StringKey("found"),
+			sink.StringKey("transport-failure")},
+	}
 	results, err := dataset.Read(
 		t.Context(),
-		[]sink.Key{sink.StringKey("failed"),
-			sink.StringKey("found"),
-			sink.StringKey("transport-failure")})
+		readRequest)
 	if status.Code(err) != codes.Unavailable {
 		t.Fatalf("Dataset.Read() error code = %s, want Unavailable", status.Code(err))
 	}
@@ -233,7 +256,10 @@ func TestDatasetReadRejectsInvalidKeysBeforeRPC(t *testing.T) {
 		t.Fatalf("NewDataset() error = %v", err)
 	}
 	var emptyKey sink.Key
-	_, err = dataset.Read(t.Context(), []sink.Key{sink.StringKey("valid"), emptyKey})
+	readRequest := sink.DatasetReadRequest{
+		Keys: []sink.Key{sink.StringKey("valid"), emptyKey},
+	}
+	_, err = dataset.Read(t.Context(), readRequest)
 	if err == nil || !strings.Contains(err.Error(), "dataset read key 1") {
 		t.Fatalf("Dataset.Read() invalid key error = %v", err)
 	}
@@ -281,19 +307,31 @@ func TestDatasetPutMethodsBindRoutingEncodingAndPerCallCompletion(t *testing.T) 
 	}
 	createProduct := datasetProduct{UID: expectations[0].key, Name: expectations[0].name, Stock: 12}
 	createRecord := sink.Record{Key: sink.StringKey(createProduct.UID), Value: createProduct}
-	createResults, err := dataset.Create(t.Context(), sink.CompletionWaitUntilApplied, []sink.Record{createRecord})
+	createRequest := sink.DatasetWriteRequest{
+		CompletionMode: sink.CompletionWaitUntilApplied,
+		Records:        []sink.Record{createRecord},
+	}
+	createResults, err := dataset.Create(t.Context(), createRequest)
 	if err != nil {
 		t.Fatalf("Dataset.Create() error = %v", err)
 	}
 	replaceProduct := datasetProduct{UID: expectations[1].key, Name: expectations[1].name, Stock: 12}
 	replaceRecord := sink.Record{Key: sink.StringKey(replaceProduct.UID), Value: replaceProduct}
-	replaceResults, err := dataset.Replace(t.Context(), sink.CompletionWaitUntilVisible, []sink.Record{replaceRecord})
+	replaceRequest := sink.DatasetWriteRequest{
+		CompletionMode: sink.CompletionWaitUntilVisible,
+		Records:        []sink.Record{replaceRecord},
+	}
+	replaceResults, err := dataset.Replace(t.Context(), replaceRequest)
 	if err != nil {
 		t.Fatalf("Dataset.Replace() error = %v", err)
 	}
 	upsertProduct := datasetProduct{UID: expectations[2].key, Name: expectations[2].name, Stock: 12}
 	upsertRecord := sink.Record{Key: sink.StringKey(upsertProduct.UID), Value: upsertProduct}
-	upsertResults, err := dataset.Upsert(t.Context(), sink.CompletionReturnAfterAccepted, []sink.Record{upsertRecord})
+	upsertRequest := sink.DatasetWriteRequest{
+		CompletionMode: sink.CompletionReturnAfterAccepted,
+		Records:        []sink.Record{upsertRecord},
+	}
+	upsertResults, err := dataset.Upsert(t.Context(), upsertRequest)
 	if err != nil {
 		t.Fatalf("Dataset.Upsert() error = %v", err)
 	}
@@ -351,7 +389,11 @@ func TestDatasetUsesConfiguredBSONEncoding(t *testing.T) {
 	}
 	product := datasetProduct{UID: "product-bson", Name: "keyboard", Stock: 4}
 	record := sink.Record{Key: sink.StringKey(product.UID), Value: product}
-	_, err = dataset.Upsert(t.Context(), sink.CompletionWaitUntilApplied, []sink.Record{record})
+	upsertRequest := sink.DatasetWriteRequest{
+		CompletionMode: sink.CompletionWaitUntilApplied,
+		Records:        []sink.Record{record},
+	}
+	_, err = dataset.Upsert(t.Context(), upsertRequest)
 	if err != nil {
 		t.Fatalf("Dataset.Upsert() error = %v", err)
 	}
@@ -388,11 +430,13 @@ func TestDatasetMergeUsesOneBoundProgramForBatch(t *testing.T) {
 		{Key: sink.StringKey("product-1"), Value: datasetProduct{UID: "product-1", Stock: 1}},
 		{Key: sink.StringKey("product-2"), Value: datasetProduct{UID: "product-2", Stock: 2}},
 	}
+	mergeRequest := sink.DatasetWriteRequest{
+		CompletionMode: sink.CompletionWaitUntilVisible,
+		Records:        records,
+	}
 	results, err := dataset.Merge(
 		t.Context(),
-		sink.CompletionWaitUntilVisible,
-		records,
-	)
+		mergeRequest)
 	if err != nil {
 		t.Fatalf("Dataset.Merge() error = %v", err)
 	}
@@ -432,10 +476,13 @@ func TestDatasetMergeUsesOneBoundProgramForBatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewDataset(put only) error = %v", err)
 	}
+	mergeRequest2 := sink.DatasetWriteRequest{
+		CompletionMode: sink.CompletionWaitUntilApplied,
+		Records:        []sink.Record{records[0]},
+	}
 	_, err = putOnlyDataset.Merge(
 		t.Context(),
-		sink.CompletionWaitUntilApplied,
-		[]sink.Record{records[0]})
+		mergeRequest2)
 	if err == nil || !strings.Contains(err.Error(), "merge program is not configured") {
 		t.Fatalf("Dataset.Merge() without program error = %v", err)
 	}
@@ -456,7 +503,11 @@ func TestDatasetUpsertSplitsBatchesAndCollectsOperationFailures(t *testing.T) {
 		product := datasetProduct{UID: uid, Stock: index}
 		records[index] = sink.Record{Key: sink.StringKey(uid), Value: product}
 	}
-	results, err := dataset.Upsert(t.Context(), sink.CompletionReturnAfterAccepted, records)
+	upsertRequest := sink.DatasetWriteRequest{
+		CompletionMode: sink.CompletionReturnAfterAccepted,
+		Records:        records,
+	}
+	results, err := dataset.Upsert(t.Context(), upsertRequest)
 	if len(results) != len(records) {
 		t.Fatalf("Dataset.Upsert() results = %d, want %d", len(results), len(records))
 	}
@@ -505,7 +556,11 @@ func TestDatasetUpsertReturnsPartialResultsOnTransportFailure(t *testing.T) {
 		{Key: sink.StringKey("product-2"), Value: datasetProduct{UID: "product-2"}},
 		{Key: sink.StringKey("product-3"), Value: datasetProduct{UID: "product-3"}},
 	}
-	results, err := dataset.Upsert(t.Context(), sink.CompletionWaitUntilApplied, records)
+	upsertRequest := sink.DatasetWriteRequest{
+		CompletionMode: sink.CompletionWaitUntilApplied,
+		Records:        records,
+	}
+	results, err := dataset.Upsert(t.Context(), upsertRequest)
 	if status.Code(err) != codes.Unavailable {
 		t.Fatalf("Dataset.Upsert() error code = %s, want Unavailable", status.Code(err))
 	}
@@ -534,7 +589,11 @@ func TestDatasetRejectsInvalidRecordsBeforeWrite(t *testing.T) {
 	}
 	var emptyKey sink.Key
 	record := sink.Record{Key: emptyKey, Value: datasetProduct{UID: "product-1"}}
-	_, err = dataset.Upsert(t.Context(), sink.CompletionWaitUntilApplied, []sink.Record{record})
+	upsertRequest := sink.DatasetWriteRequest{
+		CompletionMode: sink.CompletionWaitUntilApplied,
+		Records:        []sink.Record{record},
+	}
+	_, err = dataset.Upsert(t.Context(), upsertRequest)
 	if err == nil || !strings.Contains(err.Error(), "dataset upsert record 0") {
 		t.Fatalf("Dataset.Upsert() invalid record error = %v", err)
 	}

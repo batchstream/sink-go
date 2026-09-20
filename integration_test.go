@@ -69,28 +69,42 @@ func TestSinkCompatibility(t *testing.T) {
 	}
 	syncValue := integrationValueFor("sync", "applied")
 	syncRecord := sink.Record{Key: syncKey, Value: syncValue}
-	writeResults, err := dataset.Upsert(ctx, sink.CompletionWaitUntilVisible, []sink.Record{syncRecord})
+	upsertRequest := sink.DatasetWriteRequest{
+		CompletionMode: sink.CompletionWaitUntilVisible,
+		Records:        []sink.Record{syncRecord},
+	}
+	writeResults, err := dataset.Upsert(ctx, upsertRequest)
 	if err != nil {
 		t.Fatalf("Dataset.Upsert(sync) error = %v", err)
 	}
 	assertWriteStatus(t, writeResults, sink.WriteApplied)
 
-	readResults, err := dataset.Read(ctx, []sink.Key{syncKey})
+	readRequest := sink.DatasetReadRequest{
+		Keys: []sink.Key{syncKey},
+	}
+	readResults, err := dataset.Read(ctx, readRequest)
 	if err != nil {
 		t.Fatalf("Dataset.Read(sync) error = %v", err)
 	}
 	assertReadDocument(t, readResults, "sync", "applied")
 
-	writeResults, err = dataset.Create(ctx, sink.CompletionWaitUntilApplied, []sink.Record{syncRecord})
+	createRequest := sink.DatasetWriteRequest{
+		CompletionMode: sink.CompletionWaitUntilApplied,
+		Records:        []sink.Record{syncRecord},
+	}
+	writeResults, err = dataset.Create(ctx, createRequest)
 	if err == nil {
 		t.Fatal("Dataset.Create(duplicate) succeeded")
 	}
 	assertWriteFailure(t, writeResults, sink.WritePreconditionFailed, sink.FailurePreconditionFailed)
 
+	mergeRequest := sink.DatasetWriteRequest{
+		CompletionMode: sink.CompletionWaitUntilVisible,
+		Records:        []sink.Record{syncRecord},
+	}
 	writeResults, err = dataset.Merge(
 		ctx,
-		sink.CompletionWaitUntilVisible,
-		[]sink.Record{syncRecord})
+		mergeRequest)
 	if err != nil {
 		t.Fatalf("Dataset.Merge() error = %v", err)
 	}
@@ -98,7 +112,11 @@ func TestSinkCompatibility(t *testing.T) {
 
 	asyncValue := integrationValueFor("async", "accepted")
 	asyncRecord := sink.Record{Key: asyncKey, Value: asyncValue}
-	writeResults, err = dataset.Upsert(ctx, sink.CompletionReturnAfterAccepted, []sink.Record{asyncRecord})
+	upsertRequest2 := sink.DatasetWriteRequest{
+		CompletionMode: sink.CompletionReturnAfterAccepted,
+		Records:        []sink.Record{asyncRecord},
+	}
+	writeResults, err = dataset.Upsert(ctx, upsertRequest2)
 	if err != nil {
 		t.Fatalf("Dataset.Upsert(async) results=%+v error=%v", writeResults, err)
 	}
@@ -113,12 +131,13 @@ func TestSinkCompatibility(t *testing.T) {
 		t.Fatalf("wait for asynchronous document: %v", err)
 	}
 
+	deleteRequest := sink.DeleteRequest{
+		CompletionMode: sink.CompletionWaitUntilVisible,
+		Addresses:      []sink.Address{syncAddress, asyncAddress},
+	}
 	deleteResults, err := client.Delete(
 		ctx,
-		sink.CompletionWaitUntilVisible,
-		syncAddress,
-		asyncAddress,
-	)
+		deleteRequest)
 	if err != nil {
 		t.Fatalf("Delete() error = %v", err)
 	}
@@ -127,7 +146,10 @@ func TestSinkCompatibility(t *testing.T) {
 			t.Fatalf("Delete() result %d = %+v", index, result)
 		}
 	}
-	readResults, err = dataset.Read(ctx, []sink.Key{syncKey, asyncKey})
+	readRequest2 := sink.DatasetReadRequest{
+		Keys: []sink.Key{syncKey, asyncKey},
+	}
+	readResults, err = dataset.Read(ctx, readRequest2)
 	if err != nil {
 		t.Fatalf("Dataset.Read(after delete) error = %v", err)
 	}
@@ -193,7 +215,10 @@ func waitForDocument(
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		results, err := opts.Dataset.Read(ctx, []sink.Key{opts.Key})
+		readRequest := sink.DatasetReadRequest{
+			Keys: []sink.Key{opts.Key},
+		}
+		results, err := opts.Dataset.Read(ctx, readRequest)
 		if err == nil && len(results) == 1 && results[0].Status == sink.ReadFound {
 			var document integrationValue
 			decodeErr := results[0].Document.Decode(&document)

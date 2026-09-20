@@ -17,6 +17,9 @@ type QueryRequest struct {
 	PageSize   int         // Zero selects 100; maximum 1000.
 	Sort       []SortField // Ordered keys; empty preserves native sorting.
 	Projection *Projection // Nil preserves the native projection.
+	// OnDocument consumes each document without collecting it in the response.
+	// Nil collects documents. Returning an error cancels the stream.
+	OnDocument DocumentCallback
 }
 
 type SortField struct {
@@ -42,7 +45,7 @@ type QueryResponse struct {
 // HasMore uses one extra result. Query never automatically runs Count or retries.
 // An optional callback receives documents without collecting them in Documents.
 // HasMore is valid only when the stream finishes successfully.
-func (c *Client) Query(ctx context.Context, req QueryRequest, callbacks ...DocumentCallback) (QueryResponse, error) {
+func (c *Client) Query(ctx context.Context, req QueryRequest) (QueryResponse, error) {
 	var empty QueryResponse
 	if c == nil || c.rpc == nil {
 		return empty, errors.New("query requires a client")
@@ -65,10 +68,6 @@ func (c *Client) Query(ctx context.Context, req QueryRequest, callbacks ...Docum
 		request.Sort = append(request.Sort, item)
 	}
 	request.Projection, err = req.Projection.toProto()
-	if err != nil {
-		return empty, err
-	}
-	callback, err := oneCallback(callbacks)
 	if err != nil {
 		return empty, err
 	}
@@ -114,8 +113,8 @@ func (c *Client) Query(ctx context.Context, req QueryRequest, callbacks ...Docum
 			return result, protocolError("Query", err.Error())
 		}
 		count++
-		if callback != nil {
-			if err := callback(document); err != nil {
+		if req.OnDocument != nil {
+			if err := req.OnDocument(document); err != nil {
 				return result, err
 			}
 		} else {

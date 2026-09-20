@@ -182,6 +182,9 @@ type ScanRequest struct {
 	BatchSize  int
 	Cursor     []byte
 	Projection *Projection // Nil preserves the native projection.
+	// OnDocument consumes each document without collecting it in the response.
+	// Nil collects documents. Returning an error cancels the stream.
+	OnDocument DocumentCallback
 }
 
 type ScanResponse struct {
@@ -199,7 +202,7 @@ type ScanResponse struct {
 // does not invalidate an existing cursor.
 // An optional callback receives documents without collecting them in Documents.
 // NextCursor is returned only after the stream finishes successfully.
-func (c *Client) Scan(ctx context.Context, req ScanRequest, callbacks ...DocumentCallback) (ScanResponse, error) {
+func (c *Client) Scan(ctx context.Context, req ScanRequest) (ScanResponse, error) {
 	var empty ScanResponse
 	if c == nil || c.rpc == nil {
 		return empty, errors.New("scan requires a client")
@@ -224,10 +227,6 @@ func (c *Client) Scan(ctx context.Context, req ScanRequest, callbacks ...Documen
 		ctx, cancel = context.WithTimeout(ctx, c.config.scanTimeout)
 		defer cancel()
 	}
-	callback, err := oneCallback(callbacks)
-	if err != nil {
-		return empty, err
-	}
 	limit := req.BatchSize
 	if limit == 0 {
 		limit = 100
@@ -239,8 +238,8 @@ func (c *Client) Scan(ctx context.Context, req ScanRequest, callbacks ...Documen
 		call := scanPageCall{request: request, limit: limit}
 		call.emit = func(document Document) error {
 			received++
-			if callback != nil {
-				return callback(document)
+			if req.OnDocument != nil {
+				return req.OnDocument(document)
 			}
 			result.Documents = append(result.Documents, document)
 			return nil

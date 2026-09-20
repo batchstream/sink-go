@@ -2,6 +2,7 @@ package sink_test
 
 import (
 	"errors"
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -56,7 +57,11 @@ func TestStreamingReadRetriesOnlyUndeliveredAndDoesNotCollectCallbacks(t *testin
 	client := startTestClient(t, server, opts)
 	addresses := []sink.Address{testAddress(t, sink.StringKey("a")), testAddress(t, sink.StringKey("b")), testAddress(t, sink.StringKey("c"))}
 	seen := make(map[int]int)
-	results, err := client.Read(t.Context(), addresses, func(result sink.ReadResult) error { seen[result.OperationIndex]++; return nil })
+	readRequest := sink.ReadRequest{
+		Addresses: addresses,
+		OnResult:  func(result sink.ReadResult) error { seen[result.OperationIndex]++; return nil },
+	}
+	results, err := client.Read(t.Context(), readRequest)
 	if err != nil || results != nil || len(seen) != 3 || server.reads.Load() != 2 {
 		t.Fatalf("results=%v seen=%v calls=%d err=%v", results, seen, server.reads.Load(), err)
 	}
@@ -66,7 +71,10 @@ func TestStreamingReadRetriesOnlyUndeliveredAndDoesNotCollectCallbacks(t *testin
 		}
 	}
 	// Collecting uses the same stream, restores request order, and retains payloads.
-	results, err = client.Read(t.Context(), addresses)
+	readRequest2 := sink.ReadRequest{
+		Addresses: addresses,
+	}
+	results, err = client.Read(t.Context(), readRequest2)
 	if err != nil || len(results) != 3 {
 		t.Fatalf("collect: %v %v", results, err)
 	}
@@ -82,7 +90,11 @@ func TestCallbackErrorCancelsWithoutRetry(t *testing.T) {
 	client := startTestClient(t, server, opts)
 	addresses := []sink.Address{testAddress(t, sink.StringKey("a"))}
 	stop := status.Error(codes.Unavailable, "callback stopped")
-	results, err := client.Read(t.Context(), addresses, func(sink.ReadResult) error { return stop })
+	readRequest := sink.ReadRequest{
+		Addresses: addresses,
+		OnResult:  func(sink.ReadResult) error { return stop },
+	}
+	results, err := client.Read(t.Context(), readRequest)
 	if !errors.Is(err, stop) || results != nil || server.reads.Load() != 1 {
 		t.Fatalf("callback cancellation: %v %v", results, err)
 	}
@@ -114,7 +126,12 @@ func TestStreamingWritePreservesPartialResultsAndNeverReplays(t *testing.T) {
 				return nil
 			}
 		}
-		results, err := client.Write(t.Context(), sink.CompletionWaitUntilApplied, operations, emit)
+		writeRequest := sink.WriteRequest{
+			CompletionMode: sink.CompletionWaitUntilApplied,
+			Operations:     operations,
+			OnResult:       emit,
+		}
+		results, err := client.Write(t.Context(), writeRequest)
 		if status.Code(err) != codes.Unavailable || server.writes.Load() != 1 {
 			t.Fatalf("write replay/status: %v", err)
 		}
@@ -154,9 +171,123 @@ func TestStreamingScanWithholdsCursorOnFailure(t *testing.T) {
 		client := startTestClient(t, server, opts)
 		request := sink.ScanRequest{Command: sink.Command{URI: "sink://primary/items"}}
 		count := 0
-		response, err := client.Scan(t.Context(), request, func(sink.Document) error { count++; return nil })
+		scanRequest := request
+		scanRequest.OnDocument = func(sink.Document) error { count++; return nil }
+		response, err := client.Scan(t.Context(), scanRequest)
 		if status.Code(err) != codes.Unavailable || count != 1 || response.Documents != nil || len(response.NextCursor) != 0 {
 			t.Fatalf("unsafe cursor/collection: %+v %v count=%d", response, err, count)
 		}
+	}
+}
+
+func TestDatasetRequestCallbacksPreserveBatchFailuresWithoutCollecting(t *testing.T) {
+	server := &testSinkServer{}
+	opts := sink.ClientOptions{MaxOperations: 2}
+	client := startTestClient(t, server, opts)
+	datasetOptions := sink.DatasetOptions{URI: "sink://primary/items", Encoding: sink.DocumentEncodingJSON}
+	dataset, err := sink.NewDataset(client, datasetOptions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys := []sink.Key{sink.StringKey("a"), sink.StringKey("b"), sink.StringKey("c")}
+	readIndexes := make(map[int]int)
+	readRequest := sink.DatasetReadRequest{
+		Keys: keys,
+		OnResult: func(result sink.ReadResult) error {
+			readIndexes[result.OperationIndex]++
+			return result.Err()
+		},
+	}
+	readResults, err := dataset.Read(t.Context(), readRequest)
+	if err != nil || readResults != nil || len(readIndexes) != len(keys) {
+		t.Fatalf("read callbacks: results=%v indexes=%v err=%v", readResults, readIndexes, err)
+	}
+	for index := range keys {
+		if readIndexes[index] != 1 {
+			t.Fatalf("read index %d delivered %d times", index, readIndexes[index])
+		}
+	}
+	records := make([]sink.Record, len(keys))
+	for index, key := range keys {
+		records[index] = sink.Record{Key: key, Value: map[string]int{"value": index}}
+	}
+	writeIndexes := make(map[int]int)
+	writeRequest := sink.DatasetWriteRequest{
+		CompletionMode: sink.CompletionWaitUntilApplied,
+		Records:        records,
+		OnResult: func(result sink.WriteResult) error {
+			writeIndexes[result.OperationIndex]++
+			return nil
+		},
+	}
+	writeResults, err := dataset.Upsert(t.Context(), writeRequest)
+	var batchError *sink.BatchError
+	if writeResults != nil || len(writeIndexes) != len(records) || !errors.As(err, &batchError) {
+		t.Fatalf("write callbacks: results=%v indexes=%v err=%v", writeResults, writeIndexes, err)
+	}
+	if len(batchError.Failures) != 1 || batchError.Failures[0].OperationIndex != 1 {
+		t.Fatalf("callback lost operation failure: %+v", batchError.Failures)
+	}
+	for index := range records {
+		if writeIndexes[index] != 1 {
+			t.Fatalf("write index %d delivered %d times", index, writeIndexes[index])
+		}
+	}
+}
+
+func TestNativeRequestCallbacksKeepMetadataWithoutCollecting(t *testing.T) {
+	for _, scoped := range []bool{false, true} {
+		t.Run(fmt.Sprintf("dataset=%t", scoped), func(t *testing.T) {
+			queryServer := &queryRPCServer{}
+			opts := sink.ClientOptions{}
+			queryClient := startTestClient(t, queryServer, opts)
+			scanServer := &nativeRPCServer{}
+			scanClient := startTestClient(t, scanServer, opts)
+			command := sdkNativeRequest().Command
+			datasetOptions := sink.DatasetOptions{URI: command.URI, Encoding: sink.DocumentEncodingJSON}
+			queryDataset, err := sink.NewDataset(queryClient, datasetOptions)
+			if err != nil {
+				t.Fatal(err)
+			}
+			scanDataset, err := sink.NewDataset(scanClient, datasetOptions)
+			if err != nil {
+				t.Fatal(err)
+			}
+			queryCount := 0
+			queryRequest := sink.QueryRequest{
+				Command:  command,
+				PageSize: 1,
+				OnDocument: func(document sink.Document) error {
+					queryCount++
+					return nil
+				},
+			}
+			var queryPage sink.QueryResponse
+			if scoped {
+				queryPage, err = queryDataset.Query(t.Context(), queryRequest)
+			} else {
+				queryPage, err = queryClient.Query(t.Context(), queryRequest)
+			}
+			if err != nil || queryCount != 1 || queryPage.Documents != nil || !queryPage.HasMore {
+				t.Fatalf("query callback: page=%+v count=%d err=%v", queryPage, queryCount, err)
+			}
+			scanCount := 0
+			scanRequest := sink.ScanRequest{
+				Command: command,
+				OnDocument: func(document sink.Document) error {
+					scanCount++
+					return nil
+				},
+			}
+			var scanPage sink.ScanResponse
+			if scoped {
+				scanPage, err = scanDataset.Scan(t.Context(), scanRequest)
+			} else {
+				scanPage, err = scanClient.Scan(t.Context(), scanRequest)
+			}
+			if err != nil || scanCount != 1 || scanPage.Documents != nil || string(scanPage.NextCursor) != "next" {
+				t.Fatalf("scan callback: page=%+v count=%d err=%v", scanPage, scanCount, err)
+			}
+		})
 	}
 }

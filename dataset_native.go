@@ -40,14 +40,14 @@ func (d *Dataset) Execute(ctx context.Context, req ExecuteRequest) (ExecuteRespo
 // Query fetches a page from this Dataset. An empty Command selects all records.
 // The Store selects its default query. Query controls and native payload
 // semantics are the same as Client.Query.
-func (d *Dataset) Query(ctx context.Context, req QueryRequest, callbacks ...DocumentCallback) (QueryResponse, error) {
+func (d *Dataset) Query(ctx context.Context, req QueryRequest) (QueryResponse, error) {
 	command, err := d.bindNativeCommand(req.Command)
 	if err != nil {
 		var empty QueryResponse
 		return empty, err
 	}
 	req.Command = command
-	return d.client.Query(ctx, req, callbacks...)
+	return d.client.Query(ctx, req)
 }
 
 // Count counts matches in this Dataset. An empty Command counts all records;
@@ -64,14 +64,14 @@ func (d *Dataset) Count(ctx context.Context, req CountRequest) (CountResponse, e
 
 // Scan returns one live page scoped to this Dataset. Reuse the request with
 // NextCursor to continue. JSON commands must provide a unique stable sort.
-func (d *Dataset) Scan(ctx context.Context, req ScanRequest, callbacks ...DocumentCallback) (ScanResponse, error) {
+func (d *Dataset) Scan(ctx context.Context, req ScanRequest) (ScanResponse, error) {
 	command, err := d.bindNativeCommand(req.Command)
 	if err != nil {
 		var empty ScanResponse
 		return empty, err
 	}
 	req.Command = command
-	return d.client.Scan(ctx, req, callbacks...)
+	return d.client.Scan(ctx, req)
 }
 
 func (d *Dataset) bindNativeCommand(command Command) (Command, error) {

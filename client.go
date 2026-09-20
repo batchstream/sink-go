@@ -277,7 +277,8 @@ func (c *Client) CheckHealth(ctx context.Context) error {
 // Unavailable errors and retryable per-operation failures are retried because
 // reads are idempotent. Returned operation indexes refer to the original
 // collection.
-func (c *Client) Read(ctx context.Context, addresses []Address, callbacks ...ReadCallback) ([]ReadResult, error) {
+func (c *Client) Read(ctx context.Context, req ReadRequest) ([]ReadResult, error) {
+	addresses := req.Addresses
 	if err := c.validateCollection("read", len(addresses)); err != nil {
 		return nil, err
 	}
@@ -290,10 +291,6 @@ func (c *Client) Read(ctx context.Context, addresses []Address, callbacks ...Rea
 		operation := &sinkv1.ReadOperation{Address: protoAddress}
 		operations[index] = operation
 	}
-	callback, err := oneCallback(callbacks)
-	if err != nil {
-		return nil, err
-	}
 	var results []ReadResult
 	defer func() {
 		sort.Slice(results, func(i, j int) bool { return results[i].OperationIndex < results[j].OperationIndex })
@@ -305,8 +302,8 @@ func (c *Client) Read(ctx context.Context, addresses []Address, callbacks ...Rea
 			if result.Failure != nil {
 				result.Failure.OperationIndex += start
 			}
-			if callback != nil {
-				return callback(result)
+			if req.OnResult != nil {
+				return req.OnResult(result)
 			}
 			results = append(results, result)
 			return nil
@@ -325,12 +322,8 @@ func (c *Client) Read(ctx context.Context, addresses []Address, callbacks ...Rea
 // later batch returns an error. Without a callback, acknowledged results are
 // collected in request order. With a callback, results arrive incrementally
 // and the returned result slice is nil.
-func (c *Client) Write(
-	ctx context.Context,
-	completionMode CompletionMode,
-	operations []WriteOperation,
-	callbacks ...WriteCallback,
-) ([]WriteResult, error) {
+func (c *Client) Write(ctx context.Context, req WriteRequest) ([]WriteResult, error) {
+	completionMode, operations := req.CompletionMode, req.Operations
 	if err := c.validateCollection("write", len(operations)); err != nil {
 		return nil, err
 	}
@@ -345,10 +338,6 @@ func (c *Client) Write(
 			return nil, fmt.Errorf("write operation %d: %w", index, err)
 		}
 	}
-	callback, err := oneCallback(callbacks)
-	if err != nil {
-		return nil, err
-	}
 	var results []WriteResult
 	defer func() {
 		sort.Slice(results, func(i, j int) bool { return results[i].OperationIndex < results[j].OperationIndex })
@@ -361,8 +350,8 @@ func (c *Client) Write(
 			if result.Failure != nil {
 				result.Failure.OperationIndex += start
 			}
-			if callback != nil {
-				return callback(result)
+			if req.OnResult != nil {
+				return req.OnResult(result)
 			}
 			results = append(results, result)
 			return nil
@@ -450,11 +439,8 @@ func (c *Client) writeBatch(ctx context.Context, call writeBatchCall) error {
 // Large collections are split automatically, and transport failures are not
 // retried. Earlier batches may have completed when a later batch returns an
 // error.
-func (c *Client) Delete(
-	ctx context.Context,
-	completionMode CompletionMode,
-	addresses ...Address,
-) ([]DeleteResult, error) {
+func (c *Client) Delete(ctx context.Context, req DeleteRequest) ([]DeleteResult, error) {
+	completionMode, addresses := req.CompletionMode, req.Addresses
 	if err := c.validateCollection("delete", len(addresses)); err != nil {
 		return nil, err
 	}

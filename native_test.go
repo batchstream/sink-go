@@ -220,7 +220,11 @@ func TestReturnedDocumentsReachDatasetAndRejectAsync(t *testing.T) {
 		t.Fatal(err)
 	}
 	record := sink.Record{Key: sink.StringKey("1"), Value: map[string]int{"count": 1}, ReturnDocument: true}
-	results, err := dataset.Upsert(t.Context(), sink.CompletionWaitUntilApplied, []sink.Record{record})
+	upsertRequest := sink.DatasetWriteRequest{
+		CompletionMode: sink.CompletionWaitUntilApplied,
+		Records:        []sink.Record{record},
+	}
+	results, err := dataset.Upsert(t.Context(), upsertRequest)
 	if err != nil || len(results) != 1 {
 		t.Fatalf("results=%v err=%v", results, err)
 	}
@@ -228,7 +232,11 @@ func TestReturnedDocumentsReachDatasetAndRejectAsync(t *testing.T) {
 	if err := results[0].Document.Decode(&returned); err != nil || returned["count"] != 1 {
 		t.Fatalf("document=%v err=%v", returned, err)
 	}
-	_, err = dataset.Upsert(t.Context(), sink.CompletionReturnAfterAccepted, []sink.Record{record})
+	upsertRequest2 := sink.DatasetWriteRequest{
+		CompletionMode: sink.CompletionReturnAfterAccepted,
+		Records:        []sink.Record{record},
+	}
+	_, err = dataset.Upsert(t.Context(), upsertRequest2)
 	if err == nil || server.writeCalls.Load() != 1 {
 		t.Fatalf("async returning request sent: calls=%d err=%v", server.writeCalls.Load(), err)
 	}
@@ -245,7 +253,11 @@ func TestMissingRequestedDocumentIsProtocolFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	operation = operation.WithReturnedDocument()
-	_, err = client.Write(t.Context(), sink.CompletionWaitUntilApplied, []sink.WriteOperation{operation})
+	writeRequest := sink.WriteRequest{
+		CompletionMode: sink.CompletionWaitUntilApplied,
+		Operations:     []sink.WriteOperation{operation},
+	}
+	_, err = client.Write(t.Context(), writeRequest)
 	var protocolErr *sink.ProtocolError
 	if !errors.As(err, &protocolErr) {
 		t.Fatalf("missing requested document error=%v", err)
