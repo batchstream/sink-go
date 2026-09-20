@@ -633,7 +633,7 @@ attempts, backoff and 20% jitter. It retries only `ResourceExhausted` statuses
 carrying `google.rpc.ErrorInfo` with `domain="sink"` and
 `reason="SCAN_ADMISSION_REJECTED"`, which guarantee rejection before backend
 execution. Set `ScanRetry.MaxAttempts` to one to disable retries.
-`ClientOptions.ScanTimeout` defaults to 30 seconds and bounds the whole page,
+`ClientOptions.ScanTimeout` defaults to zero and adds no deadline. A positive value explicitly bounds the whole page,
 including all attempts and backoff. A shorter caller deadline wins; cancellation
 interrupts backoff. Save the next cursor only after successfully processing the
 returned page; automatic admission retries do not replay successful pages.
