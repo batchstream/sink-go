@@ -28,15 +28,6 @@ func documentFromProto(document *sinkv1.Document) (Document, error) {
 	return NewRawDocument(document.GetEncoding(), document.GetPayload())
 }
 
-func revisionFromProto(revision *sinkv1.RevisionToken) RevisionToken {
-	if revision == nil {
-		var empty RevisionToken
-		return empty
-	}
-	token := RevisionToken{data: bytes.Clone(revision.GetData())}
-	return token
-}
-
 func (o WriteOperation) toProto() *sinkv1.WriteOperation {
 	operation := &sinkv1.WriteOperation{Address: o.address.toProto(), ReturnDocument: o.returnDocument}
 	switch o.action {

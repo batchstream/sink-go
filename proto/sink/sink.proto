@@ -38,11 +38,6 @@ enum DocumentEncoding {
   DOCUMENT_ENCODING_BSON = 2;
 }
 
-// RevisionToken is interpreted only by the selected storage adapter.
-message RevisionToken {
-  bytes data = 1;
-}
-
 // CompletionMode defines the point at which a mutating RPC returns success.
 enum CompletionMode {
   COMPLETION_MODE_UNSPECIFIED = 0;
@@ -77,7 +72,6 @@ message ReadResult {
   uint32 operation_index = 1;
   ReadStatus status = 2;
   Document document = 3;
-  RevisionToken revision = 4;
   Failure failure = 5;
 }
 
@@ -156,7 +150,6 @@ message WriteResponse {
 message WriteResult {
   uint32 operation_index = 1;
   WriteStatus status = 2;
-  RevisionToken revision = 3;
   Failure failure = 4;
   Document document = 5;
 }

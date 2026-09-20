@@ -108,17 +108,14 @@ func (s *testSinkServer) readResponse(
 			clonedDocument := proto.Clone(s.readDocument)
 			document, _ = clonedDocument.(*sinkv1.Document)
 		}
-		revision := &sinkv1.RevisionToken{Data: []byte{byte(index + 1)}}
 		result := &sinkv1.ReadResult{
 			OperationIndex: uint32(index),
 			Status:         sinkv1.ReadStatus_READ_STATUS_FOUND,
 			Document:       document,
-			Revision:       revision,
 		}
 		if s.readNotFound {
 			result.Status = sinkv1.ReadStatus_READ_STATUS_NOT_FOUND
 			result.Document = nil
-			result.Revision = nil
 		}
 		if call <= s.readResultFailures && index == 0 {
 			failure := &sinkv1.Failure{
@@ -128,7 +125,6 @@ func (s *testSinkServer) readResponse(
 			}
 			result.Status = sinkv1.ReadStatus_READ_STATUS_FAILED
 			result.Document = nil
-			result.Revision = nil
 			result.Failure = failure
 		}
 		results[len(results)-1-index] = result
@@ -246,7 +242,6 @@ func (s *testSinkServer) writeResponse(
 		result := &sinkv1.WriteResult{
 			OperationIndex: uint32(index),
 			Status:         sinkv1.WriteStatus_WRITE_STATUS_APPLIED,
-			Revision:       &sinkv1.RevisionToken{Data: []byte{byte(index + 1)}},
 		}
 		if index == 1 && !s.suppressWriteError {
 			failure := &sinkv1.Failure{
@@ -425,9 +420,6 @@ func TestClientCoversSinkContract(t *testing.T) {
 	for index, result := range readResults {
 		if result.OperationIndex != index || result.Status != sink.ReadFound {
 			t.Fatalf("Read() result %d = %+v", index, result)
-		}
-		if len(result.Revision.Bytes()) == 0 {
-			t.Fatalf("Read() result %d revision is empty", index)
 		}
 	}
 

@@ -637,10 +637,10 @@ if err := results[0].Document.Decode(&quota); err != nil {
 ```
 
 Bind an increment Lua program to `quotas`. Each successful result contains that
-operation's logical document and revision. Sink takes it from the successful
+operation's logical document. Sink takes it from the successful
 commit candidate without a later Read. Each operation requesting a returned
 document commits independently; other operations in the same-address chain
-may still fold and share a revision. Failed operations have no
+may still fold into one commit. Failed operations have no
 document. Backend-generated fields and ingest transformations are excluded;
 Read is available for a later stored observation. Returning documents requires
 synchronous completion and is rejected with `CompletionReturnAfterAccepted`.
