@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"google.golang.org/grpc"
 	"net/http"
 	"sync/atomic"
 	"testing"
@@ -47,7 +48,7 @@ func (s *nativeRPCServer) Execute(_ context.Context, req *sinkv1.ExecuteRequest)
 	return response, nil
 }
 
-func (s *nativeRPCServer) Scan(ctx context.Context, req *sinkv1.ScanRequest) (*sinkv1.ScanResponse, error) {
+func (s *nativeRPCServer) scanResponse(ctx context.Context, req *sinkv1.ScanRequest) (*sinkv1.ScanResponse, error) {
 	call := s.scanCalls.Add(1)
 	if s.scanRequests != nil {
 		s.scanRequests <- req
@@ -73,7 +74,7 @@ func (s *nativeRPCServer) Scan(ctx context.Context, req *sinkv1.ScanRequest) (*s
 	return page, nil
 }
 
-func (s *nativeRPCServer) Write(_ context.Context, req *sinkv1.WriteRequest) (*sinkv1.WriteResponse, error) {
+func (s *nativeRPCServer) writeResponse(_ context.Context, req *sinkv1.WriteRequest) (*sinkv1.WriteResponse, error) {
 	s.writeCalls.Add(1)
 	response := &sinkv1.WriteResponse{}
 	for index, operation := range req.GetOperations() {
@@ -219,7 +220,7 @@ func TestReturnedDocumentsReachDatasetAndRejectAsync(t *testing.T) {
 		t.Fatal(err)
 	}
 	record := sink.Record{Key: sink.StringKey("1"), Value: map[string]int{"count": 1}, ReturnDocument: true}
-	results, err := dataset.Upsert(t.Context(), sink.CompletionWaitUntilApplied, record)
+	results, err := dataset.Upsert(t.Context(), sink.CompletionWaitUntilApplied, []sink.Record{record})
 	if err != nil || len(results) != 1 {
 		t.Fatalf("results=%v err=%v", results, err)
 	}
@@ -227,7 +228,7 @@ func TestReturnedDocumentsReachDatasetAndRejectAsync(t *testing.T) {
 	if err := results[0].Document.Decode(&returned); err != nil || returned["count"] != 1 {
 		t.Fatalf("document=%v err=%v", returned, err)
 	}
-	_, err = dataset.Upsert(t.Context(), sink.CompletionReturnAfterAccepted, record)
+	_, err = dataset.Upsert(t.Context(), sink.CompletionReturnAfterAccepted, []sink.Record{record})
 	if err == nil || server.writeCalls.Load() != 1 {
 		t.Fatalf("async returning request sent: calls=%d err=%v", server.writeCalls.Load(), err)
 	}
@@ -244,9 +245,44 @@ func TestMissingRequestedDocumentIsProtocolFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	operation = operation.WithReturnedDocument()
-	_, err = client.Write(t.Context(), sink.CompletionWaitUntilApplied, operation)
+	_, err = client.Write(t.Context(), sink.CompletionWaitUntilApplied, []sink.WriteOperation{operation})
 	var protocolErr *sink.ProtocolError
 	if !errors.As(err, &protocolErr) {
 		t.Fatalf("missing requested document error=%v", err)
 	}
+}
+
+func (s *nativeRPCServer) Scan(req *sinkv1.ScanRequest, stream grpc.ServerStreamingServer[sinkv1.ScanResponse]) error {
+	response, err := s.scanResponse(stream.Context(), req)
+	if err != nil {
+		return err
+	}
+	if response == nil {
+		return nil
+	}
+	for _, document := range response.Documents {
+		frame := &sinkv1.ScanResponse{Documents: []*sinkv1.Document{document}}
+		if err := stream.Send(frame); err != nil {
+			return err
+		}
+	}
+	final := &sinkv1.ScanResponse{Complete: true, NextCursor: response.NextCursor}
+	return stream.Send(final)
+}
+
+func (s *nativeRPCServer) Write(req *sinkv1.WriteRequest, stream grpc.ServerStreamingServer[sinkv1.WriteResponse]) error {
+	response, err := s.writeResponse(stream.Context(), req)
+	if err != nil {
+		return err
+	}
+	if response == nil {
+		return nil
+	}
+	for _, result := range response.Results {
+		frame := &sinkv1.WriteResponse{Results: []*sinkv1.WriteResult{result}}
+		if err := stream.Send(frame); err != nil {
+			return err
+		}
+	}
+	return nil
 }

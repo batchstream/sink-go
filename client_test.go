@@ -72,7 +72,7 @@ type testSinkServer struct {
 	suppressWriteError bool
 }
 
-func (s *testSinkServer) Read(
+func (s *testSinkServer) readResponse(
 	_ context.Context,
 	request *sinkv1.ReadRequest,
 ) (*sinkv1.ReadResponse, error) {
@@ -226,7 +226,7 @@ func TestDocumentRejectsMissingEncodingAndMalformedPayload(t *testing.T) {
 	}
 }
 
-func (s *testSinkServer) Write(
+func (s *testSinkServer) writeResponse(
 	_ context.Context,
 	request *sinkv1.WriteRequest,
 ) (*sinkv1.WriteResponse, error) {
@@ -412,7 +412,7 @@ func TestClientCoversSinkContract(t *testing.T) {
 		testAddress(t, opaque),
 	}
 
-	readResults, err := client.Read(context.Background(), addresses...)
+	readResults, err := client.Read(context.Background(), addresses)
 	if err != nil {
 		t.Fatalf("Read() error = %v", err)
 	}
@@ -446,7 +446,7 @@ func TestClientCoversSinkContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sink.NewMerge() error = %v", err)
 	}
-	writeResults, err := client.Write(context.Background(), sink.CompletionWaitUntilApplied, put, merge)
+	writeResults, err := client.Write(context.Background(), sink.CompletionWaitUntilApplied, []sink.WriteOperation{put, merge})
 	if err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}
@@ -524,7 +524,7 @@ func TestClientSendsWaitUntilVisibleCompletionMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sink.NewPut() error = %v", err)
 	}
-	_, err = client.Write(t.Context(), sink.CompletionWaitUntilVisible, operation)
+	_, err = client.Write(t.Context(), sink.CompletionWaitUntilVisible, []sink.WriteOperation{operation})
 	if err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}
@@ -557,7 +557,7 @@ func TestReadRetriesOnlyUnavailable(t *testing.T) {
 		clientOptions := sink.ClientOptions{ReadRetry: retry}
 		client := startTestClient(t, server, clientOptions)
 		address := testAddress(t, sink.StringKey("retry"))
-		_, err := client.Read(context.Background(), address)
+		_, err := client.Read(context.Background(), []sink.Address{address})
 		if err != nil {
 			t.Fatalf("Read() error = %v", err)
 		}
@@ -578,7 +578,7 @@ func TestReadRetriesOnlyUnavailable(t *testing.T) {
 		clientOptions := sink.ClientOptions{ReadRetry: retry}
 		client := startTestClient(t, server, clientOptions)
 		address := testAddress(t, sink.StringKey("quota"))
-		_, err := client.Read(context.Background(), address)
+		_, err := client.Read(context.Background(), []sink.Address{address})
 		if status.Code(err) != codes.ResourceExhausted {
 			t.Fatalf("Read() code = %s, want ResourceExhausted", status.Code(err))
 		}
@@ -611,7 +611,7 @@ func TestWriteDeclaresIdenticalLuaProgramOncePerBatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sink.NewMerge(second) error = %v", err)
 	}
-	if _, err := client.Write(context.Background(), sink.CompletionWaitUntilApplied, first, second); err != nil {
+	if _, err := client.Write(context.Background(), sink.CompletionWaitUntilApplied, []sink.WriteOperation{first, second}); err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}
 
@@ -635,7 +635,7 @@ func TestClientAcceptsMessagesLargerThanGRPCDefault(t *testing.T) {
 	var clientOptions sink.ClientOptions
 	client := startTestClient(t, server, clientOptions)
 	address := testAddress(t, sink.StringKey("large"))
-	results, err := client.Read(context.Background(), address)
+	results, err := client.Read(context.Background(), []sink.Address{address})
 	if err != nil {
 		t.Fatalf("Read() error = %v", err)
 	}
@@ -658,7 +658,7 @@ func TestReadRetriesOnlyRetryableOperationFailures(t *testing.T) {
 		testAddress(t, sink.StringKey("retry")),
 		testAddress(t, sink.StringKey("success")),
 	}
-	results, err := client.Read(context.Background(), addresses...)
+	results, err := client.Read(context.Background(), addresses)
 	if err != nil {
 		t.Fatalf("Read() error = %v", err)
 	}
@@ -694,11 +694,11 @@ func TestClientMethodsSplitBatchesAndRemapIndexes(t *testing.T) {
 		}
 		operations[index] = operation
 	}
-	readResults, err := client.Read(context.Background(), addresses...)
+	readResults, err := client.Read(context.Background(), addresses)
 	if err != nil {
 		t.Fatalf("Read() error = %v", err)
 	}
-	writeResults, err := client.Write(context.Background(), sink.CompletionWaitUntilApplied, operations...)
+	writeResults, err := client.Write(context.Background(), sink.CompletionWaitUntilApplied, operations)
 	if err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}
@@ -740,11 +740,11 @@ func TestClientValidatesCompleteCollectionsBeforeRPC(t *testing.T) {
 		operations[index] = operation
 	}
 
-	_, readErr := client.Read(t.Context(), addresses...)
+	_, readErr := client.Read(t.Context(), addresses)
 	if readErr == nil || !strings.Contains(readErr.Error(), "read operation 2") {
 		t.Fatalf("Read() error = %v", readErr)
 	}
-	_, writeErr := client.Write(t.Context(), sink.CompletionWaitUntilApplied, operations...)
+	_, writeErr := client.Write(t.Context(), sink.CompletionWaitUntilApplied, operations)
 	if writeErr == nil || !strings.Contains(writeErr.Error(), "write operation 2") {
 		t.Fatalf("Write() error = %v", writeErr)
 	}
@@ -783,11 +783,11 @@ func TestClientMethodsReturnPartialResultsWhenLaterBatchFails(t *testing.T) {
 		operations[index] = operation
 	}
 
-	readResults, readErr := client.Read(t.Context(), addresses...)
+	readResults, readErr := client.Read(t.Context(), addresses)
 	if status.Code(readErr) != codes.Unavailable || len(readResults) != 2 {
 		t.Fatalf("Read() results = %+v, error = %v", readResults, readErr)
 	}
-	writeResults, writeErr := client.Write(t.Context(), sink.CompletionWaitUntilApplied, operations...)
+	writeResults, writeErr := client.Write(t.Context(), sink.CompletionWaitUntilApplied, operations)
 	if status.Code(writeErr) != codes.Unavailable || len(writeResults) != 2 {
 		t.Fatalf("Write() results = %+v, error = %v", writeResults, writeErr)
 	}
@@ -820,7 +820,7 @@ func TestMutationsAreNotRetried(t *testing.T) {
 			if err != nil {
 				t.Fatalf("sink.NewPut() error = %v", err)
 			}
-			_, err = client.Write(t.Context(), mode, put)
+			_, err = client.Write(t.Context(), mode, []sink.WriteOperation{put})
 			if status.Code(err) != codes.Unavailable {
 				t.Fatalf("Write() code = %s, want Unavailable", status.Code(err))
 			}
@@ -859,7 +859,7 @@ func TestReadRejectsMalformedResponses(t *testing.T) {
 				testAddress(t, sink.StringKey("one")),
 				testAddress(t, sink.StringKey("two")),
 			}
-			_, err := client.Read(context.Background(), addresses...)
+			_, err := client.Read(context.Background(), addresses)
 			var protocolErr *sink.ProtocolError
 			if !errors.As(err, &protocolErr) {
 				t.Fatalf("Read() error = %v, want ProtocolError", err)
@@ -885,7 +885,7 @@ func TestMutationResponsesRejectDuplicateIndexes(t *testing.T) {
 		}
 		operations[index] = operation
 	}
-	_, err := client.Write(context.Background(), sink.CompletionWaitUntilApplied, operations...)
+	_, err := client.Write(context.Background(), sink.CompletionWaitUntilApplied, operations)
 	var writeProtocolErr *sink.ProtocolError
 	if !errors.As(err, &writeProtocolErr) {
 		t.Fatalf("Write() error = %v, want ProtocolError", err)
@@ -912,7 +912,7 @@ func TestConstructorsValidateAndCopyInput(t *testing.T) {
 		t.Fatalf("sink.NewPut() error = %v", err)
 	}
 	raw[10] = 'X'
-	_, err = client.Write(t.Context(), sink.CompletionWaitUntilApplied, operation)
+	_, err = client.Write(t.Context(), sink.CompletionWaitUntilApplied, []sink.WriteOperation{operation})
 	if err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}
@@ -959,7 +959,7 @@ func TestConstructorsValidateAndCopyInput(t *testing.T) {
 		t.Fatal("sink.NewLuaProgram() accepted empty source")
 	}
 
-	results, err := client.Read(t.Context(), address)
+	results, err := client.Read(t.Context(), []sink.Address{address})
 	if err != nil {
 		t.Fatalf("Read() error = %v", err)
 	}
@@ -1013,4 +1013,38 @@ func TestClientOptionsValidation(t *testing.T) {
 			t.Fatalf("sink.New() options %d succeeded", index)
 		}
 	}
+}
+
+func (s *testSinkServer) Read(req *sinkv1.ReadRequest, stream grpc.ServerStreamingServer[sinkv1.ReadResponse]) error {
+	response, err := s.readResponse(stream.Context(), req)
+	if err != nil {
+		return err
+	}
+	if response == nil {
+		return nil
+	}
+	for _, result := range response.Results {
+		frame := &sinkv1.ReadResponse{Results: []*sinkv1.ReadResult{result}}
+		if err := stream.Send(frame); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *testSinkServer) Write(req *sinkv1.WriteRequest, stream grpc.ServerStreamingServer[sinkv1.WriteResponse]) error {
+	response, err := s.writeResponse(stream.Context(), req)
+	if err != nil {
+		return err
+	}
+	if response == nil {
+		return nil
+	}
+	for _, result := range response.Results {
+		frame := &sinkv1.WriteResponse{Results: []*sinkv1.WriteResult{result}}
+		if err := stream.Send(frame); err != nil {
+			return err
+		}
+	}
+	return nil
 }

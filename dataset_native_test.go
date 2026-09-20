@@ -3,6 +3,7 @@ package sink_test
 import (
 	"bytes"
 	"context"
+	"google.golang.org/grpc"
 	"net/http"
 	"testing"
 	"time"
@@ -26,7 +27,7 @@ func (s *datasetNativeServer) Execute(_ context.Context, req *sinkv1.ExecuteRequ
 	return response, nil
 }
 
-func (s *datasetNativeServer) Scan(_ context.Context, req *sinkv1.ScanRequest) (*sinkv1.ScanResponse, error) {
+func (s *datasetNativeServer) scanResponse(_ context.Context, req *sinkv1.ScanRequest) (*sinkv1.ScanResponse, error) {
 	s.scans <- req
 	document := &sinkv1.Document{Encoding: sinkv1.DocumentEncoding_DOCUMENT_ENCODING_JSON, Payload: []byte(`{"number":1}`)}
 	response := &sinkv1.ScanResponse{Documents: []*sinkv1.Document{document}}
@@ -208,4 +209,22 @@ func TestDatasetNativePreservesExplicitEncodingAndStoreDefinedOperation(t *testi
 			t.Fatalf("SDK interpreted the Store's command: %v", captured)
 		}
 	}
+}
+
+func (s *datasetNativeServer) Scan(req *sinkv1.ScanRequest, stream grpc.ServerStreamingServer[sinkv1.ScanResponse]) error {
+	response, err := s.scanResponse(stream.Context(), req)
+	if err != nil {
+		return err
+	}
+	if response == nil {
+		return nil
+	}
+	for _, document := range response.Documents {
+		frame := &sinkv1.ScanResponse{Documents: []*sinkv1.Document{document}}
+		if err := stream.Send(frame); err != nil {
+			return err
+		}
+	}
+	final := &sinkv1.ScanResponse{Complete: true, NextCursor: response.NextCursor}
+	return stream.Send(final)
 }

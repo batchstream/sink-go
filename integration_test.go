@@ -69,19 +69,19 @@ func TestSinkCompatibility(t *testing.T) {
 	}
 	syncValue := integrationValueFor("sync", "applied")
 	syncRecord := sink.Record{Key: syncKey, Value: syncValue}
-	writeResults, err := dataset.Upsert(ctx, sink.CompletionWaitUntilVisible, syncRecord)
+	writeResults, err := dataset.Upsert(ctx, sink.CompletionWaitUntilVisible, []sink.Record{syncRecord})
 	if err != nil {
 		t.Fatalf("Dataset.Upsert(sync) error = %v", err)
 	}
 	assertWriteStatus(t, writeResults, sink.WriteApplied)
 
-	readResults, err := dataset.Read(ctx, syncKey)
+	readResults, err := dataset.Read(ctx, []sink.Key{syncKey})
 	if err != nil {
 		t.Fatalf("Dataset.Read(sync) error = %v", err)
 	}
 	assertReadDocument(t, readResults, "sync", "applied")
 
-	writeResults, err = dataset.Create(ctx, sink.CompletionWaitUntilApplied, syncRecord)
+	writeResults, err = dataset.Create(ctx, sink.CompletionWaitUntilApplied, []sink.Record{syncRecord})
 	if err == nil {
 		t.Fatal("Dataset.Create(duplicate) succeeded")
 	}
@@ -90,8 +90,7 @@ func TestSinkCompatibility(t *testing.T) {
 	writeResults, err = dataset.Merge(
 		ctx,
 		sink.CompletionWaitUntilVisible,
-		syncRecord,
-	)
+		[]sink.Record{syncRecord})
 	if err != nil {
 		t.Fatalf("Dataset.Merge() error = %v", err)
 	}
@@ -99,7 +98,7 @@ func TestSinkCompatibility(t *testing.T) {
 
 	asyncValue := integrationValueFor("async", "accepted")
 	asyncRecord := sink.Record{Key: asyncKey, Value: asyncValue}
-	writeResults, err = dataset.Upsert(ctx, sink.CompletionReturnAfterAccepted, asyncRecord)
+	writeResults, err = dataset.Upsert(ctx, sink.CompletionReturnAfterAccepted, []sink.Record{asyncRecord})
 	if err != nil {
 		t.Fatalf("Dataset.Upsert(async) results=%+v error=%v", writeResults, err)
 	}
@@ -128,7 +127,7 @@ func TestSinkCompatibility(t *testing.T) {
 			t.Fatalf("Delete() result %d = %+v", index, result)
 		}
 	}
-	readResults, err = dataset.Read(ctx, syncKey, asyncKey)
+	readResults, err = dataset.Read(ctx, []sink.Key{syncKey, asyncKey})
 	if err != nil {
 		t.Fatalf("Dataset.Read(after delete) error = %v", err)
 	}
@@ -194,7 +193,7 @@ func waitForDocument(
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		results, err := opts.Dataset.Read(ctx, opts.Key)
+		results, err := opts.Dataset.Read(ctx, []sink.Key{opts.Key})
 		if err == nil && len(results) == 1 && results[0].Status == sink.ReadFound {
 			var document integrationValue
 			decodeErr := results[0].Document.Decode(&document)

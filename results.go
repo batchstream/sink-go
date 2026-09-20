@@ -6,97 +6,67 @@ import (
 	sinkv1 "github.com/liran/sink-go/api/sink/v1"
 )
 
-func decodeReadResponse(response *sinkv1.ReadResponse, count int) ([]ReadResult, error) {
-	if response == nil {
-		return nil, protocolError("Read", "response is empty")
+func decodeReadResult(protoResult *sinkv1.ReadResult, index int) (ReadResult, error) {
+	var empty ReadResult
+	if protoResult == nil {
+		return empty, protocolError("Read", "result is empty")
 	}
-	if len(response.GetResults()) != count {
-		message := fmt.Sprintf("returned %d results for %d operations", len(response.GetResults()), count)
-		return nil, protocolError("Read", message)
+	result := ReadResult{OperationIndex: index, Status: protoResult.GetStatus()}
+	switch result.Status {
+	case ReadFound:
+		document, documentErr := documentFromProto(protoResult.GetDocument())
+		if documentErr != nil {
+			return empty, protocolError("Read", fmt.Sprintf("result %d: %v", index, documentErr))
+		}
+		result.Document = document
+		result.Revision = revisionFromProto(protoResult.GetRevision())
+	case ReadNotFound:
+	case ReadFailed:
+		failure, failureErr := operationFailure(index, protoResult.GetFailure())
+		if failureErr != nil {
+			return empty, protocolError("Read", failureErr.Error())
+		}
+		result.Failure = failure
+	default:
+		message := fmt.Sprintf("result %d has unsupported status %s", index, result.Status)
+		return empty, protocolError("Read", message)
 	}
-	results := make([]ReadResult, count)
-	seen := make([]bool, count)
-	for _, protoResult := range response.GetResults() {
-		if protoResult == nil {
-			return nil, protocolError("Read", "result is empty")
-		}
-		index, err := validateResultIndex("Read", protoResult.GetOperationIndex(), seen)
-		if err != nil {
-			return nil, err
-		}
-		result := ReadResult{OperationIndex: index, Status: protoResult.GetStatus()}
-		switch result.Status {
-		case ReadFound:
-			document, documentErr := documentFromProto(protoResult.GetDocument())
-			if documentErr != nil {
-				return nil, protocolError("Read", fmt.Sprintf("result %d: %v", index, documentErr))
-			}
-			result.Document = document
-			result.Revision = revisionFromProto(protoResult.GetRevision())
-		case ReadNotFound:
-		case ReadFailed:
-			failure, failureErr := operationFailure(index, protoResult.GetFailure())
-			if failureErr != nil {
-				return nil, protocolError("Read", failureErr.Error())
-			}
-			result.Failure = failure
-		default:
-			message := fmt.Sprintf("result %d has unsupported status %s", index, result.Status)
-			return nil, protocolError("Read", message)
-		}
-		results[index] = result
-	}
-	return results, nil
+	return result, nil
 }
 
-func decodeWriteResponse(response *sinkv1.WriteResponse, count int) ([]WriteResult, error) {
-	if response == nil {
-		return nil, protocolError("Write", "response is empty")
+func decodeWriteResult(protoResult *sinkv1.WriteResult, index int) (WriteResult, error) {
+	var empty WriteResult
+	if protoResult == nil {
+		return empty, protocolError("Write", "result is empty")
 	}
-	if len(response.GetResults()) != count {
-		message := fmt.Sprintf("returned %d results for %d operations", len(response.GetResults()), count)
-		return nil, protocolError("Write", message)
+	result := WriteResult{
+		OperationIndex: index,
+		Status:         protoResult.GetStatus(),
+		Revision:       revisionFromProto(protoResult.GetRevision()),
 	}
-	results := make([]WriteResult, count)
-	seen := make([]bool, count)
-	for _, protoResult := range response.GetResults() {
-		if protoResult == nil {
-			return nil, protocolError("Write", "result is empty")
+	if protoResult.GetDocument() != nil {
+		if result.Status != WriteApplied {
+			return empty, protocolError("Write", "uncommitted result contains a document")
 		}
-		index, err := validateResultIndex("Write", protoResult.GetOperationIndex(), seen)
+		document, err := documentFromProto(protoResult.GetDocument())
 		if err != nil {
-			return nil, err
+			return empty, protocolError("Write", err.Error())
 		}
-		result := WriteResult{
-			OperationIndex: index,
-			Status:         protoResult.GetStatus(),
-			Revision:       revisionFromProto(protoResult.GetRevision()),
-		}
-		if protoResult.GetDocument() != nil {
-			if result.Status != WriteApplied {
-				return nil, protocolError("Write", "uncommitted result contains a document")
-			}
-			document, err := documentFromProto(protoResult.GetDocument())
-			if err != nil {
-				return nil, protocolError("Write", err.Error())
-			}
-			result.Document = document
-		}
-		switch result.Status {
-		case WriteAccepted, WriteApplied:
-		case WritePreconditionFailed, WriteFailed:
-			failure, failureErr := operationFailure(index, protoResult.GetFailure())
-			if failureErr != nil {
-				return nil, protocolError("Write", failureErr.Error())
-			}
-			result.Failure = failure
-		default:
-			message := fmt.Sprintf("result %d has unsupported status %s", index, result.Status)
-			return nil, protocolError("Write", message)
-		}
-		results[index] = result
+		result.Document = document
 	}
-	return results, nil
+	switch result.Status {
+	case WriteAccepted, WriteApplied:
+	case WritePreconditionFailed, WriteFailed:
+		failure, failureErr := operationFailure(index, protoResult.GetFailure())
+		if failureErr != nil {
+			return empty, protocolError("Write", failureErr.Error())
+		}
+		result.Failure = failure
+	default:
+		message := fmt.Sprintf("result %d has unsupported status %s", index, result.Status)
+		return empty, protocolError("Write", message)
+	}
+	return result, nil
 }
 
 func decodeDeleteResponse(response *sinkv1.DeleteResponse, count int) ([]DeleteResult, error) {

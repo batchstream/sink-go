@@ -645,8 +645,8 @@ func (x *ReadOperation) GetAddress() *RecordAddress {
 
 type ReadResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Results are returned in request order. operation_index is included to make
-	// correlation explicit when an implementation executes records in parallel.
+	// Each frame contains one result. Results may arrive out of order; correlate
+	// by operation_index. Successful EOF requires exactly one result per operation.
 	Results       []*ReadResult `protobuf:"bytes,1,rep,name=results,proto3" json:"results,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1096,6 +1096,8 @@ func (x *LuaProgram) GetSha256() []byte {
 	return nil
 }
 
+// Each frame contains one final result, identified by operation_index.
+// A disconnected stream does not establish the outcome of missing operations.
 type WriteResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Results       []*WriteResult         `protobuf:"bytes,1,rep,name=results,proto3" json:"results,omitempty"`
@@ -1971,8 +1973,11 @@ func (x *Projection) GetExclude() bool {
 	return false
 }
 
+// Document frames contain one document. A final, document-free frame sets
+// complete and has_more. Metadata is valid only after successful EOF.
 type QueryResponse struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
+	Complete  bool                   `protobuf:"varint,3,opt,name=complete,proto3" json:"complete,omitempty"`
 	Documents []*Document            `protobuf:"bytes,1,rep,name=documents,proto3" json:"documents,omitempty"`
 	// Determined by fetching one extra result, not by running Count. Result-window
 	// limits apply to this extra result too. A byte limit fails the whole request;
@@ -2010,6 +2015,13 @@ func (x *QueryResponse) ProtoReflect() protoreflect.Message {
 // Deprecated: Use QueryResponse.ProtoReflect.Descriptor instead.
 func (*QueryResponse) Descriptor() ([]byte, []int) {
 	return file_sink_sink_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *QueryResponse) GetComplete() bool {
+	if x != nil {
+		return x.Complete
+	}
+	return false
 }
 
 func (x *QueryResponse) GetDocuments() []*Document {
@@ -2212,13 +2224,16 @@ func (x *ScanRequest) GetProjection() *Projection {
 }
 
 // Documents retain native encodings: BSON documents or complete JSON hits.
-// Failed requests return no page; callers may retry from their last saved
-// cursor, with live-query semantics and idempotent business processing.
+// A failed stream may have delivered documents but never a committed page.
+// Resume from the last saved cursor with idempotent business processing.
+// Document frames contain one document. A final, document-free frame sets
+// complete and next_cursor. Checkpoint only after successful EOF.
 type ScanResponse struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
+	Complete  bool                   `protobuf:"varint,3,opt,name=complete,proto3" json:"complete,omitempty"`
 	Documents []*Document            `protobuf:"bytes,1,rep,name=documents,proto3" json:"documents,omitempty"`
 	// Empty means the scan reached the end observed by this request. Commit a
-	// checkpoint only after processing documents. No explicit close is needed.
+	// checkpoint only after processing documents and successful EOF. No close RPC is needed.
 	NextCursor    []byte `protobuf:"bytes,2,opt,name=next_cursor,json=nextCursor,proto3" json:"next_cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2252,6 +2267,13 @@ func (x *ScanResponse) ProtoReflect() protoreflect.Message {
 // Deprecated: Use ScanResponse.ProtoReflect.Descriptor instead.
 func (*ScanResponse) Descriptor() ([]byte, []int) {
 	return file_sink_sink_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *ScanResponse) GetComplete() bool {
+	if x != nil {
+		return x.Complete
+	}
+	return false
 }
 
 func (x *ScanResponse) GetDocuments() []*Document {
@@ -2379,8 +2401,9 @@ const file_sink_sink_proto_rawDesc = "" +
 	"\n" +
 	"Projection\x12\x16\n" +
 	"\x06fields\x18\x01 \x03(\tR\x06fields\x12\x18\n" +
-	"\aexclude\x18\x02 \x01(\bR\aexclude\"[\n" +
-	"\rQueryResponse\x12/\n" +
+	"\aexclude\x18\x02 \x01(\bR\aexclude\"w\n" +
+	"\rQueryResponse\x12\x1a\n" +
+	"\bcomplete\x18\x03 \x01(\bR\bcomplete\x12/\n" +
 	"\tdocuments\x18\x01 \x03(\v2\x11.sink.v1.DocumentR\tdocuments\x12\x19\n" +
 	"\bhas_more\x18\x02 \x01(\bR\ahasMore\":\n" +
 	"\fCountRequest\x12*\n" +
@@ -2395,8 +2418,9 @@ const file_sink_sink_proto_rawDesc = "" +
 	"\x06cursor\x18\x03 \x01(\fR\x06cursor\x123\n" +
 	"\n" +
 	"projection\x18\x04 \x01(\v2\x13.sink.v1.ProjectionR\n" +
-	"projection\"`\n" +
-	"\fScanResponse\x12/\n" +
+	"projection\"|\n" +
+	"\fScanResponse\x12\x1a\n" +
+	"\bcomplete\x18\x03 \x01(\bR\bcomplete\x12/\n" +
 	"\tdocuments\x18\x01 \x03(\v2\x11.sink.v1.DocumentR\tdocuments\x12\x1f\n" +
 	"\vnext_cursor\x18\x02 \x01(\fR\n" +
 	"nextCursor*m\n" +
@@ -2440,15 +2464,15 @@ const file_sink_sink_proto_rawDesc = "" +
 	"\x1fFAILURE_CODE_RESOURCE_EXHAUSTED\x10\x05\x12\x1c\n" +
 	"\x18FAILURE_CODE_UNAVAILABLE\x10\x06\x12\"\n" +
 	"\x1eFAILURE_CODE_DEADLINE_EXCEEDED\x10\a\x12\x19\n" +
-	"\x15FAILURE_CODE_INTERNAL\x10\b2\x91\x03\n" +
-	"\x04Sink\x123\n" +
-	"\x04Read\x12\x14.sink.v1.ReadRequest\x1a\x15.sink.v1.ReadResponse\x126\n" +
-	"\x05Write\x12\x15.sink.v1.WriteRequest\x1a\x16.sink.v1.WriteResponse\x129\n" +
+	"\x15FAILURE_CODE_INTERNAL\x10\b2\x99\x03\n" +
+	"\x04Sink\x125\n" +
+	"\x04Read\x12\x14.sink.v1.ReadRequest\x1a\x15.sink.v1.ReadResponse0\x01\x128\n" +
+	"\x05Write\x12\x15.sink.v1.WriteRequest\x1a\x16.sink.v1.WriteResponse0\x01\x129\n" +
 	"\x06Delete\x12\x16.sink.v1.DeleteRequest\x1a\x17.sink.v1.DeleteResponse\x12<\n" +
-	"\aExecute\x12\x17.sink.v1.ExecuteRequest\x1a\x18.sink.v1.ExecuteResponse\x126\n" +
-	"\x05Query\x12\x15.sink.v1.QueryRequest\x1a\x16.sink.v1.QueryResponse\x126\n" +
-	"\x05Count\x12\x15.sink.v1.CountRequest\x1a\x16.sink.v1.CountResponse\x123\n" +
-	"\x04Scan\x12\x14.sink.v1.ScanRequest\x1a\x15.sink.v1.ScanResponseB-Z+github.com/liran/sink-go/api/sink/v1;sinkv1b\x06proto3"
+	"\aExecute\x12\x17.sink.v1.ExecuteRequest\x1a\x18.sink.v1.ExecuteResponse\x128\n" +
+	"\x05Query\x12\x15.sink.v1.QueryRequest\x1a\x16.sink.v1.QueryResponse0\x01\x126\n" +
+	"\x05Count\x12\x15.sink.v1.CountRequest\x1a\x16.sink.v1.CountResponse\x125\n" +
+	"\x04Scan\x12\x14.sink.v1.ScanRequest\x1a\x15.sink.v1.ScanResponse0\x01B-Z+github.com/liran/sink-go/api/sink/v1;sinkv1b\x06proto3"
 
 var (
 	file_sink_sink_proto_rawDescOnce sync.Once

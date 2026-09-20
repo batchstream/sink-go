@@ -59,7 +59,7 @@ func TestDialBalancesWritesAndFollowsEndpointChanges(t *testing.T) {
 		t.Helper()
 		attempts++
 		record := sink.Record{Key: sink.StringKey(fmt.Sprintf("record-%d", attempts)), Value: map[string]int{"value": attempts}}
-		_, err := dataset.Upsert(ctx, sink.CompletionWaitUntilApplied, record)
+		_, err := dataset.Upsert(ctx, sink.CompletionWaitUntilApplied, []sink.Record{record})
 		if err != nil {
 			t.Fatalf("write through resolved backends: %v", err)
 		}

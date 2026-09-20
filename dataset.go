@@ -69,9 +69,11 @@ func NewDataset(client *Client, opts DatasetOptions) (*Dataset, error) {
 	return dataset, nil
 }
 
-// Read fetches one or more records by key. It preserves key order, splits large
-// collections automatically, and treats not-found results as successful reads.
-func (d *Dataset) Read(ctx context.Context, keys ...Key) ([]ReadResult, error) {
+// Read fetches one or more records by key, splits large collections automatically,
+// and treats not-found results as successful reads. Without a callback, results
+// are collected in key order. With a callback, results arrive incrementally
+// and the returned result slice is nil.
+func (d *Dataset) Read(ctx context.Context, keys []Key, callbacks ...ReadCallback) ([]ReadResult, error) {
 	if err := d.validate("read"); err != nil {
 		return nil, err
 	}
@@ -83,8 +85,22 @@ func (d *Dataset) Read(ctx context.Context, keys ...Key) ([]ReadResult, error) {
 		}
 		addresses[index] = address
 	}
-	results, err := d.client.Read(ctx, addresses...)
-	resultsErr := ReadResultsError(results)
+	callback, err := oneCallback(callbacks)
+	if err != nil {
+		return nil, err
+	}
+	var failures []*OperationError
+	var onResult ReadCallback
+	if callback != nil {
+		onResult = func(result ReadResult) error {
+			if result.Failure != nil {
+				failures = append(failures, result.Failure)
+			}
+			return callback(result)
+		}
+	}
+	results, err := d.client.Read(ctx, addresses, onResult)
+	resultsErr := errors.Join(ReadResultsError(results), newBatchError(failures))
 	if err != nil {
 		if resultsErr != nil {
 			err = errors.Join(err, resultsErr)
@@ -101,13 +117,15 @@ func (d *Dataset) Read(ctx context.Context, keys ...Key) ([]ReadResult, error) {
 func (d *Dataset) Create(
 	ctx context.Context,
 	completionMode CompletionMode,
-	records ...Record,
+	records []Record,
+	callbacks ...WriteCallback,
 ) ([]WriteResult, error) {
 	opts := datasetPutOptions{
 		completionMode: completionMode,
 		writeMode:      WriteCreate,
 		operation:      "create",
 		records:        records,
+		callbacks:      callbacks,
 	}
 	return d.put(ctx, opts)
 }
@@ -116,13 +134,15 @@ func (d *Dataset) Create(
 func (d *Dataset) Replace(
 	ctx context.Context,
 	completionMode CompletionMode,
-	records ...Record,
+	records []Record,
+	callbacks ...WriteCallback,
 ) ([]WriteResult, error) {
 	opts := datasetPutOptions{
 		completionMode: completionMode,
 		writeMode:      WriteReplace,
 		operation:      "replace",
 		records:        records,
+		callbacks:      callbacks,
 	}
 	return d.put(ctx, opts)
 }
@@ -131,13 +151,15 @@ func (d *Dataset) Replace(
 func (d *Dataset) Upsert(
 	ctx context.Context,
 	completionMode CompletionMode,
-	records ...Record,
+	records []Record,
+	callbacks ...WriteCallback,
 ) ([]WriteResult, error) {
 	opts := datasetPutOptions{
 		completionMode: completionMode,
 		writeMode:      WriteUpsert,
 		operation:      "upsert",
 		records:        records,
+		callbacks:      callbacks,
 	}
 	return d.put(ctx, opts)
 }
@@ -148,7 +170,8 @@ func (d *Dataset) Upsert(
 func (d *Dataset) Merge(
 	ctx context.Context,
 	completionMode CompletionMode,
-	records ...Record,
+	records []Record,
+	callbacks ...WriteCallback,
 ) ([]WriteResult, error) {
 	if err := d.validate("merge"); err != nil {
 		return nil, err
@@ -173,10 +196,12 @@ func (d *Dataset) Merge(
 		operation.returnDocument = record.ReturnDocument
 		operations[index] = operation
 	}
-	return d.write(ctx, "merge", completionMode, operations)
+	opts := datasetWriteOptions{operation: "merge", mode: completionMode, operations: operations, callbacks: callbacks}
+	return d.write(ctx, opts)
 }
 
 type datasetPutOptions struct {
+	callbacks      []WriteCallback
 	completionMode CompletionMode
 	writeMode      WriteMode
 	operation      string
@@ -200,7 +225,8 @@ func (d *Dataset) put(ctx context.Context, opts datasetPutOptions) ([]WriteResul
 		operation.returnDocument = record.ReturnDocument
 		operations[index] = operation
 	}
-	return d.write(ctx, opts.operation, opts.completionMode, operations)
+	write := datasetWriteOptions{operation: opts.operation, mode: opts.completionMode, operations: operations, callbacks: opts.callbacks}
+	return d.write(ctx, write)
 }
 
 func (d *Dataset) validate(operation string) error {
@@ -224,14 +250,31 @@ func (d *Dataset) encodeRecord(record Record) (Address, Document, error) {
 	return address, document, nil
 }
 
-func (d *Dataset) write(
-	ctx context.Context,
-	operation string,
-	completionMode CompletionMode,
-	operations []WriteOperation,
-) ([]WriteResult, error) {
-	results, err := d.client.Write(ctx, completionMode, operations...)
-	resultsErr := WriteResultsError(results)
+type datasetWriteOptions struct {
+	operation  string
+	mode       CompletionMode
+	operations []WriteOperation
+	callbacks  []WriteCallback
+}
+
+func (d *Dataset) write(ctx context.Context, opts datasetWriteOptions) ([]WriteResult, error) {
+	operation := opts.operation
+	callback, err := oneCallback(opts.callbacks)
+	if err != nil {
+		return nil, err
+	}
+	var failures []*OperationError
+	var onResult WriteCallback
+	if callback != nil {
+		onResult = func(result WriteResult) error {
+			if result.Failure != nil {
+				failures = append(failures, result.Failure)
+			}
+			return callback(result)
+		}
+	}
+	results, err := d.client.Write(ctx, opts.mode, opts.operations, onResult)
+	resultsErr := errors.Join(WriteResultsError(results), newBatchError(failures))
 	if err != nil {
 		if resultsErr != nil {
 			err = errors.Join(err, resultsErr)

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"mime"
 	"net/http"
 	"reflect"
@@ -196,7 +197,9 @@ type ScanResponse struct {
 // the same request and cursor within ScanRetry and ScanTimeout. Checkpointing
 // and idempotent processing belong to the caller. Cancellation of one request
 // does not invalidate an existing cursor.
-func (c *Client) Scan(ctx context.Context, req ScanRequest) (ScanResponse, error) {
+// An optional callback receives documents without collecting them in Documents.
+// NextCursor is returned only after the stream finishes successfully.
+func (c *Client) Scan(ctx context.Context, req ScanRequest, callbacks ...DocumentCallback) (ScanResponse, error) {
 	var empty ScanResponse
 	if c == nil || c.rpc == nil {
 		return empty, errors.New("scan requires a client")
@@ -221,43 +224,94 @@ func (c *Client) Scan(ctx context.Context, req ScanRequest) (ScanResponse, error
 		ctx, cancel = context.WithTimeout(ctx, c.config.scanTimeout)
 		defer cancel()
 	}
-	var response *sinkv1.ScanResponse
-	backoff := c.config.scanRetry.InitialBackoff
-	for attempt := 1; attempt <= c.config.scanRetry.MaxAttempts; attempt++ {
-		if err := ctx.Err(); err != nil {
-			return empty, fmt.Errorf("scan page: %w", status.FromContextError(err).Err())
-		}
-		response, err = c.rpc.Scan(ctx, request, c.config.sinkCallOptions...)
-		if err == nil || attempt == c.config.scanRetry.MaxAttempts || !retryableScanAdmission(err) {
-			break
-		}
-		if err := waitForBackoff(ctx, jitteredBackoff(backoff, c.config.scanRetry.Jitter)); err != nil {
-			return empty, fmt.Errorf("scan page: %w", status.FromContextError(err).Err())
-		}
-		backoff = nextBackoff(backoff, c.config.scanRetry)
-	}
+	callback, err := oneCallback(callbacks)
 	if err != nil {
-		return empty, fmt.Errorf("scan page: %w", err)
-	}
-	if response == nil {
-		return empty, protocolError("Scan", "response is empty")
+		return empty, err
 	}
 	limit := req.BatchSize
 	if limit == 0 {
 		limit = 100
 	}
-	if len(response.Documents) > limit || len(response.NextCursor) > 64<<10 || (len(response.NextCursor) > 0 && len(response.Documents) == 0) {
-		return empty, protocolError("Scan", "invalid page or continuation cursor")
-	}
-	result := ScanResponse{NextCursor: bytes.Clone(response.NextCursor)}
-	for _, raw := range response.Documents {
-		document, err := documentFromProto(raw)
-		if err != nil {
-			return empty, protocolError("Scan", err.Error())
+	result := ScanResponse{}
+	backoff := c.config.scanRetry.InitialBackoff
+	for attempt := 1; attempt <= c.config.scanRetry.MaxAttempts; attempt++ {
+		received := 0
+		call := scanPageCall{request: request, limit: limit}
+		call.emit = func(document Document) error {
+			received++
+			if callback != nil {
+				return callback(document)
+			}
+			result.Documents = append(result.Documents, document)
+			return nil
 		}
-		result.Documents = append(result.Documents, document)
+		cursor, err := c.scanPage(ctx, call)
+		if err == nil {
+			result.NextCursor = cursor
+			return result, nil
+		}
+		if received > 0 || attempt == c.config.scanRetry.MaxAttempts || !retryableScanAdmission(err) {
+			return result, fmt.Errorf("scan page: %w", err)
+		}
+		if err := waitForBackoff(ctx, jitteredBackoff(backoff, c.config.scanRetry.Jitter)); err != nil {
+			return result, fmt.Errorf("scan page: %w", status.FromContextError(err).Err())
+		}
+		backoff = nextBackoff(backoff, c.config.scanRetry)
 	}
 	return result, nil
+}
+
+type scanPageCall struct {
+	request *sinkv1.ScanRequest
+	limit   int
+	emit    DocumentCallback
+}
+
+func (c *Client) scanPage(ctx context.Context, call scanPageCall) ([]byte, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	if err := ctx.Err(); err != nil {
+		return nil, status.FromContextError(err).Err()
+	}
+	stream, err := c.rpc.Scan(ctx, call.request, c.config.sinkCallOptions...)
+	if err != nil {
+		return nil, err
+	}
+	var cursor []byte
+	complete, count := false, 0
+	for {
+		frame, err := stream.Recv()
+		if err == io.EOF {
+			if !complete {
+				return nil, protocolError("Scan", "stream omitted completion")
+			}
+			return cursor, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		if frame == nil || complete {
+			return nil, protocolError("Scan", "unexpected frame after completion")
+		}
+		if frame.GetComplete() {
+			if len(frame.Documents) != 0 || len(frame.NextCursor) > 64<<10 || (len(frame.NextCursor) > 0 && count == 0) {
+				return nil, protocolError("Scan", "invalid page completion")
+			}
+			complete, cursor = true, bytes.Clone(frame.NextCursor)
+			continue
+		}
+		if len(frame.Documents) != 1 || len(frame.NextCursor) != 0 || count >= call.limit {
+			return nil, protocolError("Scan", "invalid document frame")
+		}
+		document, err := documentFromProto(frame.Documents[0])
+		if err != nil {
+			return nil, protocolError("Scan", err.Error())
+		}
+		count++
+		if err := call.emit(document); err != nil {
+			return nil, err
+		}
+	}
 }
 
 func retryableScanAdmission(err error) bool {

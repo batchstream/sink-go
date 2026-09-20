@@ -6,7 +6,9 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"math/rand/v2"
+	"sort"
 	"strings"
 	"time"
 
@@ -269,12 +271,13 @@ func (c *Client) CheckHealth(ctx context.Context) error {
 	return nil
 }
 
-// Read returns results in request order and automatically splits large
+// Read collects results in request order, or passes them in arrival order to an
+// optional callback without collecting them. It automatically splits large
 // collections into configured operation-count batches. Transport-level
 // Unavailable errors and retryable per-operation failures are retried because
 // reads are idempotent. Returned operation indexes refer to the original
 // collection.
-func (c *Client) Read(ctx context.Context, addresses ...Address) ([]ReadResult, error) {
+func (c *Client) Read(ctx context.Context, addresses []Address, callbacks ...ReadCallback) ([]ReadResult, error) {
 	if err := c.validateCollection("read", len(addresses)); err != nil {
 		return nil, err
 	}
@@ -287,15 +290,30 @@ func (c *Client) Read(ctx context.Context, addresses ...Address) ([]ReadResult, 
 		operation := &sinkv1.ReadOperation{Address: protoAddress}
 		operations[index] = operation
 	}
-	results := make([]ReadResult, 0, len(addresses))
+	callback, err := oneCallback(callbacks)
+	if err != nil {
+		return nil, err
+	}
+	var results []ReadResult
+	defer func() {
+		sort.Slice(results, func(i, j int) bool { return results[i].OperationIndex < results[j].OperationIndex })
+	}()
 	for start := 0; start < len(operations); start += c.config.maxOperations {
 		end := min(start+c.config.maxOperations, len(operations))
-		batch, err := c.readOperationsWithRetry(ctx, operations[start:end])
+		err := c.readOperationsWithRetry(ctx, operations[start:end], func(result ReadResult) error {
+			result.OperationIndex += start
+			if result.Failure != nil {
+				result.Failure.OperationIndex += start
+			}
+			if callback != nil {
+				return callback(result)
+			}
+			results = append(results, result)
+			return nil
+		})
 		if err != nil {
 			return results, fmt.Errorf("read records: %w", err)
 		}
-		remapReadIndexes(batch, start)
-		results = append(results, batch...)
 	}
 	return results, nil
 }
@@ -304,11 +322,14 @@ func (c *Client) Read(ctx context.Context, addresses ...Address) ([]ReadResult, 
 // collections into configured operation-count batches. It deliberately does
 // not retry transport failures because the server may already have applied or
 // durably accepted the mutation. Earlier batches may have completed when a
-// later batch returns an error.
+// later batch returns an error. Without a callback, acknowledged results are
+// collected in request order. With a callback, results arrive incrementally
+// and the returned result slice is nil.
 func (c *Client) Write(
 	ctx context.Context,
 	completionMode CompletionMode,
-	operations ...WriteOperation,
+	operations []WriteOperation,
+	callbacks ...WriteCallback,
 ) ([]WriteResult, error) {
 	if err := c.validateCollection("write", len(operations)); err != nil {
 		return nil, err
@@ -324,24 +345,44 @@ func (c *Client) Write(
 			return nil, fmt.Errorf("write operation %d: %w", index, err)
 		}
 	}
-	results := make([]WriteResult, 0, len(operations))
+	callback, err := oneCallback(callbacks)
+	if err != nil {
+		return nil, err
+	}
+	var results []WriteResult
+	defer func() {
+		sort.Slice(results, func(i, j int) bool { return results[i].OperationIndex < results[j].OperationIndex })
+	}()
 	for start := 0; start < len(operations); start += c.config.maxOperations {
 		end := min(start+c.config.maxOperations, len(operations))
-		batch, err := c.writeBatch(ctx, completionMode, operations[start:end])
-		if err != nil {
+		call := writeBatchCall{mode: completionMode, operations: operations[start:end]}
+		call.emit = func(result WriteResult) error {
+			result.OperationIndex += start
+			if result.Failure != nil {
+				result.Failure.OperationIndex += start
+			}
+			if callback != nil {
+				return callback(result)
+			}
+			results = append(results, result)
+			return nil
+		}
+		if err := c.writeBatch(ctx, call); err != nil {
 			return results, err
 		}
-		remapWriteIndexes(batch, start)
-		results = append(results, batch...)
 	}
 	return results, nil
 }
 
-func (c *Client) writeBatch(
-	ctx context.Context,
-	completionMode CompletionMode,
-	operations []WriteOperation,
-) ([]WriteResult, error) {
+type writeBatchCall struct {
+	mode       CompletionMode
+	operations []WriteOperation
+	emit       WriteCallback
+}
+
+func (c *Client) writeBatch(ctx context.Context, call writeBatchCall) error {
+	operations, completionMode := call.operations, call.mode
+
 	protoOperations := make([]*sinkv1.WriteOperation, len(operations))
 	luaPrograms := make([]*sinkv1.LuaProgram, 0)
 	seenLuaPrograms := make(map[[sha256.Size]byte]struct{})
@@ -364,20 +405,45 @@ func (c *Client) writeBatch(
 		Operations:     protoOperations,
 		LuaPrograms:    luaPrograms,
 	}
-	response, err := c.rpc.Write(ctx, request, c.config.sinkCallOptions...)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	stream, err := c.rpc.Write(ctx, request, c.config.sinkCallOptions...)
 	if err != nil {
-		return nil, fmt.Errorf("write records: %w", err)
+		return fmt.Errorf("write records: %w", err)
 	}
-	results, err := decodeWriteResponse(response, len(operations))
-	if err != nil {
-		return nil, err
-	}
-	for index, operation := range operations {
-		if operation.returnDocument && results[index].Status == WriteApplied && len(results[index].Document.payload) == 0 {
-			return nil, protocolError("Write", "applied operation omitted the requested document")
+	seen := make([]bool, len(operations))
+	count := 0
+	for {
+		frame, err := stream.Recv()
+		if err == io.EOF {
+			if count != len(operations) {
+				return protocolError("Write", "stream omitted operation results")
+			}
+			return nil
 		}
+		if err != nil {
+			return fmt.Errorf("write records: %w", err)
+		}
+		if frame == nil || len(frame.GetResults()) != 1 || frame.Results[0] == nil {
+			return protocolError("Write", "expected one result per frame")
+		}
+		raw := frame.Results[0]
+		index, err := validateResultIndex("Write", raw.GetOperationIndex(), seen)
+		if err != nil {
+			return err
+		}
+		result, err := decodeWriteResult(raw, index)
+		if err != nil {
+			return err
+		}
+		if operations[index].returnDocument && result.Status == WriteApplied && len(result.Document.payload) == 0 {
+			return protocolError("Write", "applied operation omitted the requested document")
+		}
+		if err := call.emit(result); err != nil {
+			return err
+		}
+		count++
 	}
-	return results, nil
 }
 
 // Delete permanently deletes records. Deleting an absent record is successful.
@@ -436,24 +502,6 @@ func (c *Client) validateCollection(method string, count int) error {
 	return nil
 }
 
-func remapReadIndexes(results []ReadResult, offset int) {
-	for index := range results {
-		results[index].OperationIndex += offset
-		if results[index].Failure != nil {
-			results[index].Failure.OperationIndex += offset
-		}
-	}
-}
-
-func remapWriteIndexes(results []WriteResult, offset int) {
-	for index := range results {
-		results[index].OperationIndex += offset
-		if results[index].Failure != nil {
-			results[index].Failure.OperationIndex += offset
-		}
-	}
-}
-
 func remapDeleteIndexes(results []DeleteResult, offset int) {
 	for index := range results {
 		results[index].OperationIndex += offset
@@ -473,60 +521,83 @@ type pendingRead struct {
 	operation *sinkv1.ReadOperation
 }
 
-func (c *Client) readOperationsWithRetry(
-	ctx context.Context,
-	operations []*sinkv1.ReadOperation,
-) ([]ReadResult, error) {
-	results := make([]ReadResult, len(operations))
-	pending := make([]pendingRead, 0, len(operations))
+func (c *Client) readOperationsWithRetry(ctx context.Context, operations []*sinkv1.ReadOperation, emit ReadCallback) error {
+	pending := make([]pendingRead, len(operations))
 	for index, operation := range operations {
-		work := pendingRead{index: index, operation: operation}
-		pending = append(pending, work)
+		pending[index] = pendingRead{index: index, operation: operation}
 	}
 	backoff := c.config.readRetry.InitialBackoff
 	for attempt := 1; attempt <= c.config.readRetry.MaxAttempts; attempt++ {
-		requestOperations := make([]*sinkv1.ReadOperation, 0, len(pending))
-		for _, work := range pending {
-			requestOperations = append(requestOperations, work.operation)
+		request := &sinkv1.ReadRequest{Operations: make([]*sinkv1.ReadOperation, len(pending))}
+		for index, work := range pending {
+			request.Operations[index] = work.operation
 		}
-		request := &sinkv1.ReadRequest{Operations: requestOperations}
-		response, err := c.rpc.Read(ctx, request, c.config.sinkCallOptions...)
-		if err != nil {
-			if attempt == c.config.readRetry.MaxAttempts || status.Code(err) != codes.Unavailable {
-				return nil, err
-			}
-			if err := waitForBackoff(ctx, jitteredBackoff(backoff, c.config.readRetry.Jitter)); err != nil {
-				return nil, err
-			}
-			backoff = nextBackoff(backoff, c.config.readRetry)
-			continue
-		}
-		decoded, err := decodeReadResponse(response, len(pending))
-		if err != nil {
-			return nil, err
-		}
+		execution, cancel := context.WithCancel(ctx)
+		stream, transportErr := c.rpc.Read(execution, request, c.config.sinkCallOptions...)
+		seen := make([]bool, len(pending))
 		next := make([]pendingRead, 0)
-		for index, result := range decoded {
-			work := pending[index]
-			result.OperationIndex = work.index
-			if result.Failure != nil {
-				result.Failure.OperationIndex = work.index
+		count := 0
+		if transportErr == nil {
+			for {
+				frame, err := stream.Recv()
+				if err == io.EOF {
+					if count != len(pending) {
+						cancel()
+						return protocolError("Read", "stream omitted operation results")
+					}
+					break
+				}
+				if err != nil {
+					transportErr = err
+					break
+				}
+				if frame == nil || len(frame.GetResults()) != 1 || frame.Results[0] == nil {
+					cancel()
+					return protocolError("Read", "expected one result per frame")
+				}
+				raw := frame.Results[0]
+				index, err := validateResultIndex("Read", raw.GetOperationIndex(), seen)
+				if err != nil {
+					cancel()
+					return err
+				}
+				work := pending[index]
+				result, err := decodeReadResult(raw, work.index)
+				if err != nil {
+					cancel()
+					return err
+				}
+				count++
+				if attempt < c.config.readRetry.MaxAttempts && result.Failure != nil && result.Failure.Retryable {
+					next = append(next, work)
+				} else if err := emit(result); err != nil {
+					cancel()
+					return err
+				}
 			}
-			results[work.index] = result
-			if attempt < c.config.readRetry.MaxAttempts && result.Failure != nil && result.Failure.Retryable {
-				next = append(next, work)
+		}
+		cancel()
+		if transportErr != nil {
+			if attempt == c.config.readRetry.MaxAttempts || status.Code(transportErr) != codes.Unavailable {
+				return transportErr
+			}
+			// Never redeliver a result already observed by the caller.
+			for index, work := range pending {
+				if !seen[index] {
+					next = append(next, work)
+				}
 			}
 		}
 		if len(next) == 0 {
-			return results, nil
+			return transportErr
 		}
 		if err := waitForBackoff(ctx, jitteredBackoff(backoff, c.config.readRetry.Jitter)); err != nil {
-			return nil, err
+			return err
 		}
 		pending = next
 		backoff = nextBackoff(backoff, c.config.readRetry)
 	}
-	return results, nil
+	return nil
 }
 
 func waitForBackoff(ctx context.Context, delay time.Duration) error {

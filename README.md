@@ -99,12 +99,12 @@ func main() {
 	_, err = products.Upsert(
 		context.Background(),
 		sink.CompletionWaitUntilVisible,
-		record,
+		[]sink.Record{record},
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
-	readResults, err := products.Read(context.Background(), sink.StringKey(value.UID))
+	readResults, err := products.Read(context.Background(), []sink.Key{sink.StringKey(value.UID)})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func main() {
 `Dataset` binds the stable store, namespace, dataset, and document encoding once.
 `Read` accepts one or many keys without reconstructing addresses. Each mutation
 still receives an explicit completion mode because callers of the same dataset
-can require different durability or visibility guarantees. Pass any number of
+can require different durability or visibility guarantees. Pass a slice of
 records to `Create`, `Replace`, or `Upsert`; the client validates and encodes the
 complete collection before sending it, automatically splits large collections
 by `ClientOptions.MaxOperations`, and preserves global operation indexes:
@@ -133,7 +133,7 @@ records := []sink.Record{
 results, err := products.Upsert(
 	context.Background(),
 	sink.CompletionReturnAfterAccepted,
-	records...,
+	records,
 )
 ```
 
@@ -179,7 +179,7 @@ record := sink.Record{
 results, err := products.Merge(
 	context.Background(),
 	sink.CompletionWaitUntilVisible,
-	record,
+	[]sink.Record{record},
 )
 if err != nil {
 	log.Fatal(err)
@@ -196,16 +196,49 @@ versioned `sink.v1` array, object, and retry-stable time helpers. See the
 [Lua merge developer guide](https://github.com/liran/sink/blob/main/docs/lua-merge-guide.md)
 for the complete function reference and reliability rules.
 
+## Streaming callbacks
+
+Read, Write, Query and Scan use server-streaming RPCs. The previous unary wire
+contract has been removed; upgrade server and SDK together. Record collections
+are now slices so the final optional argument can be a callback. Omitting the
+callback (or passing nil) collects results and preserves request order. Supplying
+one calls it serially as items arrive and returns no collected documents:
+
+```go
+results, err := client.Read(ctx, addresses)
+results, err = client.Read(ctx, addresses, func(result sink.ReadResult) error {
+    // Process the owned result here. Returning an error cancels the stream.
+    return result.Err()
+}) // results == nil
+
+page, err := client.Scan(ctx, request, func(document sink.Document) error {
+    return process(document)
+}) // page.Documents == nil; NextCursor is available only on success.
+```
+
+Dataset Read/Create/Replace/Upsert/Merge accept a key/record slice and the same
+optional result callback. Query and Scan accept an optional document callback.
+Different record results can arrive out of order; `OperationIndex` always refers
+to the original input slice. No callback documents are retained by the SDK.
+Dataset methods retain only failure metadata for `BatchError`.
+
+Callbacks can observe partial results before a stream fails. Read retries never
+redeliver completed results, and callback errors are never retried. Writes are
+never automatically replayed; undelivered outcomes are unknown. Query/Scan
+metadata is published only after successful EOF. If a page fails after processing
+some documents, keep the previous cursor and use idempotent processing on resume.
+The default collector returns received documents/results along with any error.
+
 ## API model
 
 - `Dataset` is the primary record API. It binds routing, encoding, and one
   optional Lua program. `Read` accepts one or many keys; `Create`, `Replace`,
   `Upsert`, and `Merge` accept one or many `Record` values while keeping
   completion mode explicit per mutation. Every method splits large collections
-  automatically and returns all per-record results.
-- `Read(ctx, addresses...)` preserves request order and reports found,
+  automatically and collects per-record results unless a callback is supplied.
+- `Read(ctx, addresses, callback...)` preserves request order and reports found,
   not-found, or failed results independently.
-- `Write(ctx, completionMode, operations...)` supports mixed put and merge
+- `Write(ctx, completionMode, operations, callback...)` supports mixed put and merge
   batches. Use `NewPut` and `NewMerge` to construct validated operations.
 - `Delete(ctx, completionMode, addresses...)` performs hard deletes; deleting
   an absent record is successful.
