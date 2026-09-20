@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"unicode/utf8"
 
@@ -16,6 +17,9 @@ type QueryRequest struct {
 	PageSize   int         // Zero selects 100; maximum 1000.
 	Sort       []SortField // Ordered keys; empty preserves native sorting.
 	Projection *Projection // Nil preserves the native projection.
+	// OnDocument consumes each document without collecting it in the response.
+	// Nil collects documents. Returning an error cancels the stream.
+	OnDocument DocumentCallback
 }
 
 type SortField struct {
@@ -39,10 +43,18 @@ type QueryResponse struct {
 // Use a stable native sort with a unique tie-breaker. Concurrent writes can shift
 // pages; deep pages are subject to backend offset costs and result-window limits.
 // HasMore uses one extra result. Query never automatically runs Count or retries.
+// An optional callback receives documents without collecting them in Documents.
+// HasMore is valid only when the stream finishes successfully.
 func (c *Client) Query(ctx context.Context, req QueryRequest) (QueryResponse, error) {
 	var empty QueryResponse
 	if c == nil || c.rpc == nil {
 		return empty, errors.New("query requires a client")
+	}
+	if req.Page == 0 {
+		req.Page = 1
+	}
+	if req.PageSize == 0 {
+		req.PageSize = defaultPageSize
 	}
 	if req.Page < 0 || uint64(req.Page) > uint64(^uint32(0)) || req.PageSize < 0 || req.PageSize > 1000 {
 		return empty, errors.New("query requires a nonnegative uint32 page and page size between 0 and 1000")
@@ -65,29 +77,53 @@ func (c *Client) Query(ctx context.Context, req QueryRequest) (QueryResponse, er
 	if err != nil {
 		return empty, err
 	}
-	response, err := c.rpc.Query(ctx, request, c.config.sinkCallOptions...)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	stream, err := c.rpc.Query(ctx, request, c.config.sinkCallOptions...)
 	if err != nil {
 		return empty, fmt.Errorf("query native page: %w", err)
 	}
-	if response == nil {
-		return empty, protocolError("Query", "response is empty")
-	}
 	pageSize := req.PageSize
-	if pageSize == 0 {
-		pageSize = 100
-	}
-	if len(response.GetDocuments()) > pageSize || (response.GetHasMore() && len(response.GetDocuments()) != pageSize) {
-		return empty, protocolError("Query", "invalid page length or has_more")
-	}
-	result := QueryResponse{HasMore: response.GetHasMore()}
-	for _, raw := range response.GetDocuments() {
-		document, err := documentFromProto(raw)
-		if err != nil {
-			return empty, protocolError("Query", err.Error())
+	result := QueryResponse{}
+	complete, hasMore, count := false, false, 0
+	for {
+		frame, err := stream.Recv()
+		if err == io.EOF {
+			if !complete {
+				return result, protocolError("Query", "stream omitted completion")
+			}
+			result.HasMore = hasMore
+			return result, nil
 		}
-		result.Documents = append(result.Documents, document)
+		if err != nil {
+			return result, fmt.Errorf("query native page: %w", err)
+		}
+		if frame == nil || complete {
+			return result, protocolError("Query", "unexpected frame after completion")
+		}
+		if frame.GetComplete() {
+			if len(frame.Documents) != 0 || (frame.GetHasMore() && count != pageSize) {
+				return result, protocolError("Query", "invalid page completion")
+			}
+			complete, hasMore = true, frame.GetHasMore()
+			continue
+		}
+		if len(frame.Documents) != 1 || frame.GetHasMore() || count >= pageSize {
+			return result, protocolError("Query", "invalid document frame")
+		}
+		document, err := documentFromProto(frame.Documents[0])
+		if err != nil {
+			return result, protocolError("Query", err.Error())
+		}
+		count++
+		if req.OnDocument != nil {
+			if err := req.OnDocument(document); err != nil {
+				return result, err
+			}
+		} else {
+			result.Documents = append(result.Documents, document)
+		}
 	}
-	return result, nil
 }
 
 type CountRequest struct {

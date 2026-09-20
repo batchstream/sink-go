@@ -3,6 +3,7 @@ package sink_test
 import (
 	"bytes"
 	"context"
+	"google.golang.org/grpc"
 	"net/http"
 	"testing"
 	"time"
@@ -26,7 +27,7 @@ func (s *datasetNativeServer) Execute(_ context.Context, req *sinkv1.ExecuteRequ
 	return response, nil
 }
 
-func (s *datasetNativeServer) Scan(_ context.Context, req *sinkv1.ScanRequest) (*sinkv1.ScanResponse, error) {
+func (s *datasetNativeServer) scanResponse(_ context.Context, req *sinkv1.ScanRequest) (*sinkv1.ScanResponse, error) {
 	s.scans <- req
 	document := &sinkv1.Document{Encoding: sinkv1.DocumentEncoding_DOCUMENT_ENCODING_JSON, Payload: []byte(`{"number":1}`)}
 	response := &sinkv1.ScanResponse{Documents: []*sinkv1.Document{document}}
@@ -47,7 +48,9 @@ func TestDatasetNativeMethodsBindOpaqueURIAndRetainControls(t *testing.T) {
 				t.Fatal(err)
 			}
 			projection := &sink.Projection{Fields: []string{"name"}}
-			query := sink.QueryRequest{Page: 3, PageSize: 1, Sort: []sink.SortField{{Field: "name", Descending: true}}, Projection: projection}
+			sortField := sink.SortField{Field: "name", Descending: true}
+			query := sink.NewQueryRequest().WithPage(3).WithPageSize(1).
+				WithSort(sortField).WithProjection(projection)
 			if _, err := dataset.Query(t.Context(), query); err != nil {
 				t.Fatal(err)
 			}
@@ -62,7 +65,8 @@ func TestDatasetNativeMethodsBindOpaqueURIAndRetainControls(t *testing.T) {
 			}
 			countRequest := <-server.counts
 			assertDatasetNativeResource(t, countRequest.Command, opts.URI)
-			scan := sink.ScanRequest{BatchSize: 23, Cursor: []byte("checkpoint"), Projection: projection}
+			scan := sink.NewScanRequest().WithBatchSize(23).
+				WithCursor([]byte("checkpoint")).WithProjection(projection)
 			if page, err := dataset.Scan(t.Context(), scan); err != nil || len(page.Documents) != 1 {
 				t.Fatalf("scan=%+v err=%v", page, err)
 			}
@@ -208,4 +212,22 @@ func TestDatasetNativePreservesExplicitEncodingAndStoreDefinedOperation(t *testi
 			t.Fatalf("SDK interpreted the Store's command: %v", captured)
 		}
 	}
+}
+
+func (s *datasetNativeServer) Scan(req *sinkv1.ScanRequest, stream grpc.ServerStreamingServer[sinkv1.ScanResponse]) error {
+	response, err := s.scanResponse(stream.Context(), req)
+	if err != nil {
+		return err
+	}
+	if response == nil {
+		return nil
+	}
+	for _, document := range response.Documents {
+		frame := &sinkv1.ScanResponse{Documents: []*sinkv1.Document{document}}
+		if err := stream.Send(frame); err != nil {
+			return err
+		}
+	}
+	final := &sinkv1.ScanResponse{Complete: true, NextCursor: response.NextCursor}
+	return stream.Send(final)
 }

@@ -3,6 +3,7 @@ package sink_test
 import (
 	"context"
 	"errors"
+	"google.golang.org/grpc"
 	"sync/atomic"
 	"testing"
 
@@ -20,10 +21,11 @@ type queryRPCServer struct {
 	countCalls  atomic.Int32
 	fail        bool
 	invalidPage bool
+	lastPage    bool
 	estimated   bool
 }
 
-func (s *queryRPCServer) Query(_ context.Context, req *sinkv1.QueryRequest) (*sinkv1.QueryResponse, error) {
+func (s *queryRPCServer) queryResponse(_ context.Context, req *sinkv1.QueryRequest) (*sinkv1.QueryResponse, error) {
 	s.queryCalls.Add(1)
 	if s.fail {
 		return nil, status.Error(codes.Unavailable, "connection lost")
@@ -32,7 +34,7 @@ func (s *queryRPCServer) Query(_ context.Context, req *sinkv1.QueryRequest) (*si
 		s.queries <- req
 	}
 	document := &sinkv1.Document{Encoding: sinkv1.DocumentEncoding_DOCUMENT_ENCODING_JSON, Payload: []byte(`{"_source":{"number":4}}`)}
-	response := &sinkv1.QueryResponse{Documents: []*sinkv1.Document{document}, HasMore: true}
+	response := &sinkv1.QueryResponse{Documents: []*sinkv1.Document{document}, HasMore: !s.lastPage}
 	if s.invalidPage {
 		response.Documents = nil
 	}
@@ -113,4 +115,22 @@ func TestQueryAndCountDoNotRetryTransportFailures(t *testing.T) {
 	if _, err := client.Count(t.Context(), count); status.Code(err) != codes.Unavailable || server.countCalls.Load() != 1 {
 		t.Fatalf("count retried: %d %v", server.countCalls.Load(), err)
 	}
+}
+
+func (s *queryRPCServer) Query(req *sinkv1.QueryRequest, stream grpc.ServerStreamingServer[sinkv1.QueryResponse]) error {
+	response, err := s.queryResponse(stream.Context(), req)
+	if err != nil {
+		return err
+	}
+	if response == nil {
+		return nil
+	}
+	for _, document := range response.Documents {
+		frame := &sinkv1.QueryResponse{Documents: []*sinkv1.Document{document}}
+		if err := stream.Send(frame); err != nil {
+			return err
+		}
+	}
+	final := &sinkv1.QueryResponse{Complete: true, HasMore: response.HasMore}
+	return stream.Send(final)
 }

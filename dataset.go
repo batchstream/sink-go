@@ -69,9 +69,12 @@ func NewDataset(client *Client, opts DatasetOptions) (*Dataset, error) {
 	return dataset, nil
 }
 
-// Read fetches one or more records by key. It preserves key order, splits large
-// collections automatically, and treats not-found results as successful reads.
-func (d *Dataset) Read(ctx context.Context, keys ...Key) ([]ReadResult, error) {
+// Read fetches one or more records by key, splits large collections automatically,
+// and treats not-found results as successful reads. Without a callback, results
+// are collected in key order. With a callback, results arrive incrementally
+// and the returned result slice is nil.
+func (d *Dataset) Read(ctx context.Context, req DatasetReadRequest) ([]ReadResult, error) {
+	keys := req.Keys
 	if err := d.validate("read"); err != nil {
 		return nil, err
 	}
@@ -83,8 +86,20 @@ func (d *Dataset) Read(ctx context.Context, keys ...Key) ([]ReadResult, error) {
 		}
 		addresses[index] = address
 	}
-	results, err := d.client.Read(ctx, addresses...)
-	resultsErr := ReadResultsError(results)
+	callback := req.OnResult
+	var failures []*OperationError
+	var onResult ReadCallback
+	if callback != nil {
+		onResult = func(result ReadResult) error {
+			if result.Failure != nil {
+				failures = append(failures, result.Failure)
+			}
+			return callback(result)
+		}
+	}
+	request := ReadRequest{Addresses: addresses, OnResult: onResult}
+	results, err := d.client.Read(ctx, request)
+	resultsErr := errors.Join(ReadResultsError(results), newBatchError(failures))
 	if err != nil {
 		if resultsErr != nil {
 			err = errors.Join(err, resultsErr)
@@ -98,46 +113,31 @@ func (d *Dataset) Read(ctx context.Context, keys ...Key) ([]ReadResult, error) {
 }
 
 // Create writes complete documents only when their keys do not already exist.
-func (d *Dataset) Create(
-	ctx context.Context,
-	completionMode CompletionMode,
-	records ...Record,
-) ([]WriteResult, error) {
+func (d *Dataset) Create(ctx context.Context, req DatasetWriteRequest) ([]WriteResult, error) {
 	opts := datasetPutOptions{
-		completionMode: completionMode,
-		writeMode:      WriteCreate,
-		operation:      "create",
-		records:        records,
+		request:   req,
+		writeMode: WriteCreate,
+		operation: "create",
 	}
 	return d.put(ctx, opts)
 }
 
 // Replace writes complete documents only when their keys already exist.
-func (d *Dataset) Replace(
-	ctx context.Context,
-	completionMode CompletionMode,
-	records ...Record,
-) ([]WriteResult, error) {
+func (d *Dataset) Replace(ctx context.Context, req DatasetWriteRequest) ([]WriteResult, error) {
 	opts := datasetPutOptions{
-		completionMode: completionMode,
-		writeMode:      WriteReplace,
-		operation:      "replace",
-		records:        records,
+		request:   req,
+		writeMode: WriteReplace,
+		operation: "replace",
 	}
 	return d.put(ctx, opts)
 }
 
 // Upsert writes complete documents whether or not their keys already exist.
-func (d *Dataset) Upsert(
-	ctx context.Context,
-	completionMode CompletionMode,
-	records ...Record,
-) ([]WriteResult, error) {
+func (d *Dataset) Upsert(ctx context.Context, req DatasetWriteRequest) ([]WriteResult, error) {
 	opts := datasetPutOptions{
-		completionMode: completionMode,
-		writeMode:      WriteUpsert,
-		operation:      "upsert",
-		records:        records,
+		request:   req,
+		writeMode: WriteUpsert,
+		operation: "upsert",
 	}
 	return d.put(ctx, opts)
 }
@@ -145,19 +145,15 @@ func (d *Dataset) Upsert(
 // Merge atomically applies the Dataset's bound Lua program to every incoming
 // record, creating a record when none exists. A Dataset without MergeProgram
 // rejects Merge before sending an RPC.
-func (d *Dataset) Merge(
-	ctx context.Context,
-	completionMode CompletionMode,
-	records ...Record,
-) ([]WriteResult, error) {
+func (d *Dataset) Merge(ctx context.Context, req DatasetWriteRequest) ([]WriteResult, error) {
 	if err := d.validate("merge"); err != nil {
 		return nil, err
 	}
 	if !d.hasMergeProgram {
 		return nil, errors.New("dataset merge: merge program is not configured")
 	}
-	operations := make([]WriteOperation, len(records))
-	for index, record := range records {
+	operations := make([]WriteOperation, len(req.Records))
+	for index, record := range req.Records {
 		address, document, err := d.encodeRecord(record)
 		if err != nil {
 			return nil, fmt.Errorf("dataset merge record %d: %w", index, err)
@@ -173,22 +169,22 @@ func (d *Dataset) Merge(
 		operation.returnDocument = record.ReturnDocument
 		operations[index] = operation
 	}
-	return d.write(ctx, "merge", completionMode, operations)
+	request := WriteRequest{CompletionMode: req.CompletionMode, Operations: operations, OnResult: req.OnResult}
+	return d.write(ctx, "merge", request)
 }
 
 type datasetPutOptions struct {
-	completionMode CompletionMode
-	writeMode      WriteMode
-	operation      string
-	records        []Record
+	request   DatasetWriteRequest
+	writeMode WriteMode
+	operation string
 }
 
 func (d *Dataset) put(ctx context.Context, opts datasetPutOptions) ([]WriteResult, error) {
 	if err := d.validate(opts.operation); err != nil {
 		return nil, err
 	}
-	operations := make([]WriteOperation, len(opts.records))
-	for index, record := range opts.records {
+	operations := make([]WriteOperation, len(opts.request.Records))
+	for index, record := range opts.request.Records {
 		address, document, err := d.encodeRecord(record)
 		if err != nil {
 			return nil, fmt.Errorf("dataset %s record %d: %w", opts.operation, index, err)
@@ -200,7 +196,8 @@ func (d *Dataset) put(ctx context.Context, opts datasetPutOptions) ([]WriteResul
 		operation.returnDocument = record.ReturnDocument
 		operations[index] = operation
 	}
-	return d.write(ctx, opts.operation, opts.completionMode, operations)
+	request := WriteRequest{CompletionMode: opts.request.CompletionMode, Operations: operations, OnResult: opts.request.OnResult}
+	return d.write(ctx, opts.operation, request)
 }
 
 func (d *Dataset) validate(operation string) error {
@@ -224,14 +221,21 @@ func (d *Dataset) encodeRecord(record Record) (Address, Document, error) {
 	return address, document, nil
 }
 
-func (d *Dataset) write(
-	ctx context.Context,
-	operation string,
-	completionMode CompletionMode,
-	operations []WriteOperation,
-) ([]WriteResult, error) {
-	results, err := d.client.Write(ctx, completionMode, operations...)
-	resultsErr := WriteResultsError(results)
+func (d *Dataset) write(ctx context.Context, operation string, req WriteRequest) ([]WriteResult, error) {
+	callback := req.OnResult
+	var failures []*OperationError
+	var onResult WriteCallback
+	if callback != nil {
+		onResult = func(result WriteResult) error {
+			if result.Failure != nil {
+				failures = append(failures, result.Failure)
+			}
+			return callback(result)
+		}
+	}
+	req.OnResult = onResult
+	results, err := d.client.Write(ctx, req)
+	resultsErr := errors.Join(WriteResultsError(results), newBatchError(failures))
 	if err != nil {
 		if resultsErr != nil {
 			err = errors.Join(err, resultsErr)

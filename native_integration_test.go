@@ -63,14 +63,22 @@ end`))
 	t.Cleanup(func() {
 		cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_, _ = client.Delete(cleanup, sink.CompletionWaitUntilApplied, address)
+		deleteRequest := sink.DeleteRequest{
+			CompletionMode: sink.CompletionWaitUntilApplied,
+			Addresses:      []sink.Address{address},
+		}
+		_, _ = client.Delete(cleanup, deleteRequest)
 	})
 	value := struct {
 		Count     int       `bson:"count"`
 		UpdatedAt time.Time `bson:"updated_at"`
 	}{Count: 1, UpdatedAt: integrationDateTime()}
 	record := sink.Record{Key: key, Value: value, ReturnDocument: true}
-	results, err := dataset.Merge(ctx, sink.CompletionWaitUntilApplied, record, record)
+	mergeRequest := sink.DatasetWriteRequest{
+		CompletionMode: sink.CompletionWaitUntilApplied,
+		Records:        []sink.Record{record, record},
+	}
+	results, err := dataset.Merge(ctx, mergeRequest)
 	if err != nil || len(results) != 2 {
 		t.Fatalf("returned Merge: %+v %v", results, err)
 	}

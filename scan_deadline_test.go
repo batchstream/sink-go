@@ -2,6 +2,7 @@ package sink_test
 
 import (
 	"context"
+	"google.golang.org/grpc"
 	"testing"
 	"time"
 
@@ -14,7 +15,7 @@ type scanDeadlineServer struct {
 	deadlines chan time.Time
 }
 
-func (s *scanDeadlineServer) Scan(ctx context.Context, _ *sinkv1.ScanRequest) (*sinkv1.ScanResponse, error) {
+func (s *scanDeadlineServer) scanResponse(ctx context.Context, _ *sinkv1.ScanRequest) (*sinkv1.ScanResponse, error) {
 	deadline, _ := ctx.Deadline()
 	s.deadlines <- deadline
 	response := &sinkv1.ScanResponse{}
@@ -49,4 +50,22 @@ func TestScanDeadlineBelongsToCaller(t *testing.T) {
 			}
 		})
 	}
+}
+
+func (s *scanDeadlineServer) Scan(req *sinkv1.ScanRequest, stream grpc.ServerStreamingServer[sinkv1.ScanResponse]) error {
+	response, err := s.scanResponse(stream.Context(), req)
+	if err != nil {
+		return err
+	}
+	if response == nil {
+		return nil
+	}
+	for _, document := range response.Documents {
+		frame := &sinkv1.ScanResponse{Documents: []*sinkv1.Document{document}}
+		if err := stream.Send(frame); err != nil {
+			return err
+		}
+	}
+	final := &sinkv1.ScanResponse{Complete: true, NextCursor: response.NextCursor}
+	return stream.Send(final)
 }

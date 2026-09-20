@@ -95,7 +95,11 @@ func testDNSScaleChanges(t *testing.T, opts sink.DialOptions) {
 		t.Helper()
 		attempts++
 		record := sink.Record{Key: sink.StringKey(fmt.Sprintf("record-%d", attempts)), Value: map[string]int{"value": attempts}}
-		_, err := dataset.Upsert(ctx, sink.CompletionWaitUntilApplied, record)
+		upsertRequest := sink.DatasetWriteRequest{
+			CompletionMode: sink.CompletionWaitUntilApplied,
+			Records:        []sink.Record{record},
+		}
+		_, err := dataset.Upsert(ctx, upsertRequest)
 		if err != nil {
 			t.Fatalf("write during DNS scaling: %v", err)
 		}

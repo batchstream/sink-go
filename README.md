@@ -96,15 +96,14 @@ func main() {
 		Key:   sink.StringKey(value.UID),
 		Value: value,
 	}
-	_, err = products.Upsert(
-		context.Background(),
-		sink.CompletionWaitUntilVisible,
-		record,
-	)
+	writeRequest := sink.NewDatasetWriteRequest(record).
+		WithCompletionMode(sink.CompletionWaitUntilVisible)
+	_, err = products.Upsert(context.Background(), writeRequest)
 	if err != nil {
 		log.Fatal(err)
 	}
-	readResults, err := products.Read(context.Background(), sink.StringKey(value.UID))
+	readRequest := sink.NewDatasetReadRequest(sink.StringKey(value.UID))
+	readResults, err := products.Read(context.Background(), readRequest)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -118,10 +117,10 @@ func main() {
 ```
 
 `Dataset` binds the stable store, namespace, dataset, and document encoding once.
-`Read` accepts one or many keys without reconstructing addresses. Each mutation
-still receives an explicit completion mode because callers of the same dataset
-can require different durability or visibility guarantees. Pass any number of
-records to `Create`, `Replace`, or `Upsert`; the client validates and encodes the
+`Read` accepts one or many keys without reconstructing addresses. Mutations
+wait until applied by default; `WithCompletionMode` changes durability or
+visibility for an individual call. Pass records to `NewDatasetWriteRequest` or
+set `DatasetWriteRequest.Records` directly. The client validates and encodes the
 complete collection before sending it, automatically splits large collections
 by `ClientOptions.MaxOperations`, and preserves global operation indexes:
 
@@ -130,11 +129,9 @@ records := []sink.Record{
 	{Key: sink.StringKey("product-42"), Value: firstProduct},
 	{Key: sink.StringKey("product-43"), Value: secondProduct},
 }
-results, err := products.Upsert(
-	context.Background(),
-	sink.CompletionReturnAfterAccepted,
-	records...,
-)
+request := sink.NewDatasetWriteRequest(records...).
+	WithCompletionMode(sink.CompletionReturnAfterAccepted)
+results, err := products.Upsert(context.Background(), request)
 ```
 
 Configure `DocumentEncodingBSON` for MongoDB; it applies `bson` tags and keeps
@@ -176,11 +173,9 @@ record := sink.Record{
 	Key:   sink.StringKey("product-42"),
 	Value: incomingProduct,
 }
-results, err := products.Merge(
-	context.Background(),
-	sink.CompletionWaitUntilVisible,
-	record,
-)
+request := sink.NewDatasetWriteRequest(record).
+	WithCompletionMode(sink.CompletionWaitUntilVisible)
+results, err := products.Merge(context.Background(), request)
 if err != nil {
 	log.Fatal(err)
 }
@@ -196,18 +191,108 @@ versioned `sink.v1` array, object, and retry-stable time helpers. See the
 [Lua merge developer guide](https://github.com/liran/sink/blob/main/docs/lua-merge-guide.md)
 for the complete function reference and reliability rules.
 
+## Request helpers and defaults
+
+Helpers accept individual records/keys/addresses, or an existing slice with
+`...`. Chain `With...` methods to override fields; each method returns an updated
+request value without modifying the original or copying document payloads.
+Direct struct literals remain supported and receive the same defaults at call time.
+
+```go
+request := sink.NewDatasetWriteRequest(records...) // APPLIED; collect results.
+results, err := products.Upsert(ctx, request)
+
+streamRequest := request.WithOnResult(processWrite)
+results, err = products.Upsert(ctx, streamRequest) // results == nil
+
+readRequest := sink.NewDatasetReadRequest(keys...).WithOnResult(processRead)
+readResults, err := products.Read(ctx, readRequest) // readResults == nil
+
+queryRequest := sink.NewQueryRequest().WithPage(2).WithPageSize(50)
+page, err := products.Query(ctx, queryRequest)
+
+scanRequest := sink.NewScanRequest().WithBatchSize(50).WithOnDocument(processDocument)
+scanPage, err := products.Scan(ctx, scanRequest)
+if err != nil {
+    return err
+}
+scanRequest = scanRequest.WithCursor(scanPage.NextCursor)
+```
+
+| Request field | Default when unset |
+| --- | --- |
+| Write/Delete/DatasetWrite `CompletionMode` | `CompletionWaitUntilApplied` |
+| Query `Page` / `PageSize` | `1` / `100` |
+| Scan `BatchSize` / `Cursor` | `100` / start a new scan |
+| `OnResult` / `OnDocument` | Collect and return results |
+| Query `Sort` / Query and Scan `Projection` | Preserve native settings |
+
+Client record methods have corresponding `NewReadRequest`, `NewWriteRequest`
+and `NewDeleteRequest` helpers. Native Client queries and scans use
+`WithCommand(command)`; Dataset supplies its bound resource when Command is empty.
+`WithSort` keeps the given field order, and `WithProjection` accepts the existing
+Projection type. Nil callbacks restore collection. Invalid nonzero completion
+modes, negative pagination values and oversized pages still fail validation.
+
+## Streaming callbacks
+
+Read, Write, Query and Scan use server-streaming RPCs. The previous unary wire
+contract has been removed; upgrade server and SDK together. Each method accepts
+`ctx` and a typed request. Record requests use `Addresses`, `Operations`, `Keys`
+or `Records` slices; completion mode and callbacks belong to the same request.
+Future options can be added as fields without changing method signatures.
+
+`OnResult` handles Read/Write results and `OnDocument` handles Query/Scan documents.
+A nil callback collects and returns results. A non-nil callback processes each
+item serially without collecting it: Read/Write return a nil result slice;
+Query/Scan return nil `Documents` while retaining page metadata on success.
+
+```go
+readRequest := sink.ReadRequest{Addresses: addresses}
+results, err := client.Read(ctx, readRequest) // Collected in request order.
+
+readRequest.OnResult = func(result sink.ReadResult) error {
+    // Returning an error cancels the stream.
+    return result.Err()
+}
+results, err = client.Read(ctx, readRequest) // results == nil
+
+scanRequest := sink.ScanRequest{
+    Command: command,
+    OnDocument: func(document sink.Document) error {
+        return process(document)
+    },
+}
+page, err := client.Scan(ctx, scanRequest)
+// page.Documents == nil; NextCursor is available only on success.
+```
+
+Dataset Read uses `DatasetReadRequest`; Create/Replace/Upsert/Merge share
+`DatasetWriteRequest`. Both expose `OnResult`. Query and Scan share their request
+types with Client and expose `OnDocument`. Different record results can arrive
+out of order; `OperationIndex` always refers to the original input slice.
+No callback documents are retained by the SDK. Dataset methods retain only
+failure metadata for `BatchError`.
+
+Callbacks can observe partial results before a stream fails. Read retries never
+redeliver completed results, and callback errors are never retried. Writes are
+never automatically replayed; undelivered outcomes are unknown. Query/Scan
+metadata is published only after successful EOF. If a page fails after processing
+some documents, keep the previous cursor and use idempotent processing on resume.
+The default collector returns received documents/results along with any error.
+
 ## API model
 
 - `Dataset` is the primary record API. It binds routing, encoding, and one
   optional Lua program. `Read` accepts one or many keys; `Create`, `Replace`,
-  `Upsert`, and `Merge` accept one or many `Record` values while keeping
-  completion mode explicit per mutation. Every method splits large collections
-  automatically and returns all per-record results.
-- `Read(ctx, addresses...)` preserves request order and reports found,
+  `Upsert`, and `Merge` accept one or many `Record` values with APPLIED completion
+  by default and an optional per-call override. Every method splits large collections
+  automatically and collects per-record results unless a callback is supplied.
+- `Read(ctx, ReadRequest)` preserves request order and reports found,
   not-found, or failed results independently.
-- `Write(ctx, completionMode, operations...)` supports mixed put and merge
+- `Write(ctx, WriteRequest)` supports mixed put and merge
   batches. Use `NewPut` and `NewMerge` to construct validated operations.
-- `Delete(ctx, completionMode, addresses...)` performs hard deletes; deleting
+- `Delete(ctx, DeleteRequest)` performs hard deletes; deleting
   an absent record is successful.
 - `Execute(ctx, request)` returns native BSON or HTTP payloads, status and headers
   for native queries, writes, and administration; MongoDB cursor/session commands
@@ -524,7 +609,8 @@ can observe newer data. Execute never retries automatically. Scan retries only
 temporary admission rejections explicitly marked by Sink, using the identical
 command and cursor. Unmarked `ResourceExhausted` (including older servers),
 backend errors, transport failures and invalid pages are not retried. A failed
-Scan returns no page; reuse the last saved cursor and process idempotently.
+Scan can return partial documents but no next cursor; reuse the last saved
+cursor and process idempotently.
 Persist task completion separately so a completed task does not restart from an
 empty cursor. A dataset recreation or remapping requires an explicit new scan.
 
@@ -539,7 +625,8 @@ record := sink.Record{
 	Value:          increment,
 	ReturnDocument: true,
 }
-results, err := quotas.Merge(ctx, sink.CompletionWaitUntilApplied, record)
+request := sink.NewDatasetWriteRequest(record) // Defaults to APPLIED.
+results, err := quotas.Merge(ctx, request)
 if err != nil {
 	return err
 }

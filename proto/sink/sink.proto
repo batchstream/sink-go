@@ -9,13 +9,13 @@ option go_package = "github.com/liran/sink-go/api/sink/v1;sinkv1";
 // Record requests are batch-native. Atomicity is guaranteed per record, never
 // for the whole request. Native queries use Execute, Query, Count or paged Scan.
 service Sink {
-  rpc Read(ReadRequest) returns (ReadResponse);
-  rpc Write(WriteRequest) returns (WriteResponse);
+  rpc Read(ReadRequest) returns (stream ReadResponse);
+  rpc Write(WriteRequest) returns (stream WriteResponse);
   rpc Delete(DeleteRequest) returns (DeleteResponse);
   rpc Execute(ExecuteRequest) returns (ExecuteResponse);
-  rpc Query(QueryRequest) returns (QueryResponse);
+  rpc Query(QueryRequest) returns (stream QueryResponse);
   rpc Count(CountRequest) returns (CountResponse);
-  rpc Scan(ScanRequest) returns (ScanResponse);
+  rpc Scan(ScanRequest) returns (stream ScanResponse);
 }
 
 // RecordAddress is a canonical sink://<store>/<path> URI. The core treats the
@@ -68,8 +68,8 @@ message ReadOperation {
 }
 
 message ReadResponse {
-  // Results are returned in request order. operation_index is included to make
-  // correlation explicit when an implementation executes records in parallel.
+  // Each frame contains one result. Results may arrive out of order; correlate
+  // by operation_index. Successful EOF requires exactly one result per operation.
   repeated ReadResult results = 1;
 }
 
@@ -103,15 +103,15 @@ message WriteRequest {
 message WriteOperation {
   RecordAddress address = 1;
 
-  // Return the logical document submitted by this operation after its commit.
-  // Only synchronous completion modes support this. These operations do not
-  // share a folded commit with preceding or following operations.
-  bool return_document = 4;
-
   oneof action {
     PutOperation put = 2;
     MergeOperation merge = 3;
   }
+
+  // Return the logical document submitted by this operation after its commit.
+  // Only synchronous completion modes support this. These operations do not
+  // share a folded commit with preceding or following operations.
+  bool return_document = 4;
 }
 
 // PutOperation writes a complete user document without interpreting its fields.
@@ -147,6 +147,8 @@ message LuaProgram {
   bytes sha256 = 2;
 }
 
+// Each frame contains one final result, identified by operation_index.
+// A disconnected stream does not establish the outcome of missing operations.
 message WriteResponse {
   repeated WriteResult results = 1;
 }
@@ -326,6 +328,8 @@ message Projection {
   bool exclude = 2; // False includes listed fields; true excludes them.
 }
 
+// Document frames contain one document. A final, document-free frame sets
+// complete and has_more. Metadata is valid only after successful EOF.
 message QueryResponse {
   repeated Document documents = 1;
 
@@ -333,6 +337,7 @@ message QueryResponse {
   // limits apply to this extra result too. A byte limit fails the whole request;
   // it never produces a silently shortened page.
   bool has_more = 2;
+  bool complete = 3;
 }
 
 // Count is an independent query, not an implicit part of Query. It accepts the
@@ -376,12 +381,15 @@ message ScanRequest {
 }
 
 // Documents retain native encodings: BSON documents or complete JSON hits.
-// Failed requests return no page; callers may retry from their last saved
-// cursor, with live-query semantics and idempotent business processing.
+// A failed stream may have delivered documents but never a committed page.
+// Resume from the last saved cursor with idempotent business processing.
+// Document frames contain one document. A final, document-free frame sets
+// complete and next_cursor. Checkpoint only after successful EOF.
 message ScanResponse {
   repeated Document documents = 1;
 
   // Empty means the scan reached the end observed by this request. Commit a
-  // checkpoint only after processing documents. No explicit close is needed.
+  // checkpoint only after processing documents and successful EOF. No close RPC is needed.
   bytes next_cursor = 2;
+  bool complete = 3;
 }
