@@ -1,7 +1,7 @@
 // Package testuri constructs canonical URI fixtures for tests.
 package testuri
 
-import "github.com/liran/sink-go/uri"
+import "github.com/batchstream/sink-go/uri"
 
 func Resource(store string, segments []string) string {
 	address, err := uri.New(store, segments)

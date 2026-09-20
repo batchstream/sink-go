@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/liran/sink-go/internal/testuri"
+	"github.com/batchstream/sink-go/internal/testuri"
 
-	sink "github.com/liran/sink-go"
-	sinkv1 "github.com/liran/sink-go/api/sink/v1"
+	sink "github.com/batchstream/sink-go"
+	sinkv1 "github.com/batchstream/sink-go/api/sink/v1"
 	"golang.org/x/net/dns/dnsmessage"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

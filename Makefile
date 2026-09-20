@@ -13,9 +13,9 @@ proto:
 	GOBIN=$(BIN_DIR) go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@$(PROTOC_GEN_GO_VTPROTO_VERSION)
 	PATH="$(BIN_DIR):$$PATH" protoc \
 		--proto_path=proto \
-		--go_out=. --go_opt=module=github.com/liran/sink-go \
-		--go-grpc_out=. --go-grpc_opt=module=github.com/liran/sink-go \
-		--go-vtproto_out=. --go-vtproto_opt=module=github.com/liran/sink-go,features=marshal+unmarshal+size \
+		--go_out=. --go_opt=module=github.com/batchstream/sink-go \
+		--go-grpc_out=. --go-grpc_opt=module=github.com/batchstream/sink-go \
+		--go-vtproto_out=. --go-vtproto_opt=module=github.com/batchstream/sink-go,features=marshal+unmarshal+size \
 		proto/sink/sink.proto
 	@perl -0pi -e 's/\treturn &sinkClient\{cc\}\n/\tclient := \&sinkClient{cc}\n\treturn client\n/' api/sink/v1/sink_grpc.pb.go
 	@perl -0pi -e 's/^(\s*)m\.([A-Za-z]+) = append\(m\.\2, &([A-Za-z]+)\{\}\)\n/$$1item := \&$${3}{}\n$$1m.$$2 = append(m.$$2, item)\n/gm' api/sink/v1/sink_vtproto.pb.go

@@ -2407,7 +2407,7 @@ const file_sink_sink_proto_rawDesc = "" +
 	"\aExecute\x12\x17.sink.v1.ExecuteRequest\x1a\x18.sink.v1.ExecuteResponse\x128\n" +
 	"\x05Query\x12\x15.sink.v1.QueryRequest\x1a\x16.sink.v1.QueryResponse0\x01\x126\n" +
 	"\x05Count\x12\x15.sink.v1.CountRequest\x1a\x16.sink.v1.CountResponse\x125\n" +
-	"\x04Scan\x12\x14.sink.v1.ScanRequest\x1a\x15.sink.v1.ScanResponse0\x01B-Z+github.com/liran/sink-go/api/sink/v1;sinkv1b\x06proto3"
+	"\x04Scan\x12\x14.sink.v1.ScanRequest\x1a\x15.sink.v1.ScanResponse0\x01B3Z1github.com/batchstream/sink-go/api/sink/v1;sinkv1b\x06proto3"
 
 var (
 	file_sink_sink_proto_rawDescOnce sync.Once

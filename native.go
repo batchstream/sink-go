@@ -13,8 +13,8 @@ import (
 	"sort"
 	"strings"
 
-	sinkv1 "github.com/liran/sink-go/api/sink/v1"
-	"github.com/liran/sink-go/uri"
+	sinkv1 "github.com/batchstream/sink-go/api/sink/v1"
+	"github.com/batchstream/sink-go/uri"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"

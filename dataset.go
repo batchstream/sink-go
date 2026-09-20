@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/liran/sink-go/uri"
+	"github.com/batchstream/sink-go/uri"
 )
 
 // DatasetOptions binds the stable routing, encoding, and optional merge

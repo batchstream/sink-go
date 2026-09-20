@@ -84,7 +84,7 @@ jobs:
           CANDIDATE_REF: ${{ github.head_ref }}
         run: |
           ref=main
-          if [[ -n "${CANDIDATE_REF}" ]] && git ls-remote --exit-code --heads https://github.com/liran/sink.git "refs/heads/${CANDIDATE_REF}" >/dev/null 2>&1; then
+          if [[ -n "${CANDIDATE_REF}" ]] && git ls-remote --exit-code --heads https://github.com/batchstream/sink.git "refs/heads/${CANDIDATE_REF}" >/dev/null 2>&1; then
             ref="${CANDIDATE_REF}"
           fi
           echo "ref=${ref}" >> "${GITHUB_OUTPUT}"
@@ -92,7 +92,7 @@ jobs:
       - name: Check out Sink server
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: liran/sink
+          repository: batchstream/sink
           path: sink-server
           ref: ${{ steps.server-ref.outputs.ref }}
 
@@ -104,7 +104,7 @@ jobs:
 
       - name: Verify matching protobuf contract
         run: |
-          sed 's#github.com/liran/sink/gen/sink;sink#github.com/liran/sink-go/api/sink/v1;sinkv1#' \
+          sed 's#github.com/batchstream/sink/gen/sink;sink#github.com/batchstream/sink-go/api/sink/v1;sinkv1#' \
             sink-server/proto/sink/sink.proto | diff -u - proto/sink/sink.proto
 
       - name: Start Sink with MongoDB and Kafka
