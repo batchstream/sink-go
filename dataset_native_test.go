@@ -48,7 +48,9 @@ func TestDatasetNativeMethodsBindOpaqueURIAndRetainControls(t *testing.T) {
 				t.Fatal(err)
 			}
 			projection := &sink.Projection{Fields: []string{"name"}}
-			query := sink.QueryRequest{Page: 3, PageSize: 1, Sort: []sink.SortField{{Field: "name", Descending: true}}, Projection: projection}
+			sortField := sink.SortField{Field: "name", Descending: true}
+			query := sink.NewQueryRequest().WithPage(3).WithPageSize(1).
+				WithSort(sortField).WithProjection(projection)
 			if _, err := dataset.Query(t.Context(), query); err != nil {
 				t.Fatal(err)
 			}
@@ -63,7 +65,8 @@ func TestDatasetNativeMethodsBindOpaqueURIAndRetainControls(t *testing.T) {
 			}
 			countRequest := <-server.counts
 			assertDatasetNativeResource(t, countRequest.Command, opts.URI)
-			scan := sink.ScanRequest{BatchSize: 23, Cursor: []byte("checkpoint"), Projection: projection}
+			scan := sink.NewScanRequest().WithBatchSize(23).
+				WithCursor([]byte("checkpoint")).WithProjection(projection)
 			if page, err := dataset.Scan(t.Context(), scan); err != nil || len(page.Documents) != 1 {
 				t.Fatalf("scan=%+v err=%v", page, err)
 			}

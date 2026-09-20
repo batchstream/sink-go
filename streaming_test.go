@@ -57,10 +57,10 @@ func TestStreamingReadRetriesOnlyUndeliveredAndDoesNotCollectCallbacks(t *testin
 	client := startTestClient(t, server, opts)
 	addresses := []sink.Address{testAddress(t, sink.StringKey("a")), testAddress(t, sink.StringKey("b")), testAddress(t, sink.StringKey("c"))}
 	seen := make(map[int]int)
-	readRequest := sink.ReadRequest{
-		Addresses: addresses,
-		OnResult:  func(result sink.ReadResult) error { seen[result.OperationIndex]++; return nil },
-	}
+	readRequest := sink.NewReadRequest(addresses...).WithOnResult(func(result sink.ReadResult) error {
+		seen[result.OperationIndex]++
+		return nil
+	})
 	results, err := client.Read(t.Context(), readRequest)
 	if err != nil || results != nil || len(seen) != 3 || server.reads.Load() != 2 {
 		t.Fatalf("results=%v seen=%v calls=%d err=%v", results, seen, server.reads.Load(), err)
@@ -71,8 +71,9 @@ func TestStreamingReadRetriesOnlyUndeliveredAndDoesNotCollectCallbacks(t *testin
 		}
 	}
 	// Collecting uses the same stream, restores request order, and retains payloads.
-	readRequest2 := sink.ReadRequest{
-		Addresses: addresses,
+	readRequest2 := readRequest.WithOnResult(nil)
+	if readRequest.OnResult == nil {
+		t.Fatal("WithOnResult modified the original request")
 	}
 	results, err = client.Read(t.Context(), readRequest2)
 	if err != nil || len(results) != 3 {
@@ -126,11 +127,7 @@ func TestStreamingWritePreservesPartialResultsAndNeverReplays(t *testing.T) {
 				return nil
 			}
 		}
-		writeRequest := sink.WriteRequest{
-			CompletionMode: sink.CompletionWaitUntilApplied,
-			Operations:     operations,
-			OnResult:       emit,
-		}
+		writeRequest := sink.NewWriteRequest(operations...).WithOnResult(emit)
 		results, err := client.Write(t.Context(), writeRequest)
 		if status.Code(err) != codes.Unavailable || server.writes.Load() != 1 {
 			t.Fatalf("write replay/status: %v", err)
@@ -191,13 +188,10 @@ func TestDatasetRequestCallbacksPreserveBatchFailuresWithoutCollecting(t *testin
 	}
 	keys := []sink.Key{sink.StringKey("a"), sink.StringKey("b"), sink.StringKey("c")}
 	readIndexes := make(map[int]int)
-	readRequest := sink.DatasetReadRequest{
-		Keys: keys,
-		OnResult: func(result sink.ReadResult) error {
-			readIndexes[result.OperationIndex]++
-			return result.Err()
-		},
-	}
+	readRequest := sink.NewDatasetReadRequest(keys...).WithOnResult(func(result sink.ReadResult) error {
+		readIndexes[result.OperationIndex]++
+		return result.Err()
+	})
 	readResults, err := dataset.Read(t.Context(), readRequest)
 	if err != nil || readResults != nil || len(readIndexes) != len(keys) {
 		t.Fatalf("read callbacks: results=%v indexes=%v err=%v", readResults, readIndexes, err)
@@ -212,14 +206,10 @@ func TestDatasetRequestCallbacksPreserveBatchFailuresWithoutCollecting(t *testin
 		records[index] = sink.Record{Key: key, Value: map[string]int{"value": index}}
 	}
 	writeIndexes := make(map[int]int)
-	writeRequest := sink.DatasetWriteRequest{
-		CompletionMode: sink.CompletionWaitUntilApplied,
-		Records:        records,
-		OnResult: func(result sink.WriteResult) error {
-			writeIndexes[result.OperationIndex]++
-			return nil
-		},
-	}
+	writeRequest := sink.NewDatasetWriteRequest(records...).WithOnResult(func(result sink.WriteResult) error {
+		writeIndexes[result.OperationIndex]++
+		return nil
+	})
 	writeResults, err := dataset.Upsert(t.Context(), writeRequest)
 	var batchError *sink.BatchError
 	if writeResults != nil || len(writeIndexes) != len(records) || !errors.As(err, &batchError) {
@@ -254,14 +244,11 @@ func TestNativeRequestCallbacksKeepMetadataWithoutCollecting(t *testing.T) {
 				t.Fatal(err)
 			}
 			queryCount := 0
-			queryRequest := sink.QueryRequest{
-				Command:  command,
-				PageSize: 1,
-				OnDocument: func(document sink.Document) error {
+			queryRequest := sink.NewQueryRequest().WithCommand(command).WithPageSize(1).
+				WithOnDocument(func(document sink.Document) error {
 					queryCount++
 					return nil
-				},
-			}
+				})
 			var queryPage sink.QueryResponse
 			if scoped {
 				queryPage, err = queryDataset.Query(t.Context(), queryRequest)
@@ -272,13 +259,11 @@ func TestNativeRequestCallbacksKeepMetadataWithoutCollecting(t *testing.T) {
 				t.Fatalf("query callback: page=%+v count=%d err=%v", queryPage, queryCount, err)
 			}
 			scanCount := 0
-			scanRequest := sink.ScanRequest{
-				Command: command,
-				OnDocument: func(document sink.Document) error {
+			scanRequest := sink.NewScanRequest().WithCommand(command).
+				WithOnDocument(func(document sink.Document) error {
 					scanCount++
 					return nil
-				},
-			}
+				})
 			var scanPage sink.ScanResponse
 			if scoped {
 				scanPage, err = scanDataset.Scan(t.Context(), scanRequest)

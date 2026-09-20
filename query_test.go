@@ -21,6 +21,7 @@ type queryRPCServer struct {
 	countCalls  atomic.Int32
 	fail        bool
 	invalidPage bool
+	lastPage    bool
 	estimated   bool
 }
 
@@ -33,7 +34,7 @@ func (s *queryRPCServer) queryResponse(_ context.Context, req *sinkv1.QueryReque
 		s.queries <- req
 	}
 	document := &sinkv1.Document{Encoding: sinkv1.DocumentEncoding_DOCUMENT_ENCODING_JSON, Payload: []byte(`{"_source":{"number":4}}`)}
-	response := &sinkv1.QueryResponse{Documents: []*sinkv1.Document{document}, HasMore: true}
+	response := &sinkv1.QueryResponse{Documents: []*sinkv1.Document{document}, HasMore: !s.lastPage}
 	if s.invalidPage {
 		response.Documents = nil
 	}

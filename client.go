@@ -323,7 +323,7 @@ func (c *Client) Read(ctx context.Context, req ReadRequest) ([]ReadResult, error
 // collected in request order. With a callback, results arrive incrementally
 // and the returned result slice is nil.
 func (c *Client) Write(ctx context.Context, req WriteRequest) ([]WriteResult, error) {
-	completionMode, operations := req.CompletionMode, req.Operations
+	completionMode, operations := defaultCompletionMode(req.CompletionMode), req.Operations
 	if err := c.validateCollection("write", len(operations)); err != nil {
 		return nil, err
 	}
@@ -440,7 +440,7 @@ func (c *Client) writeBatch(ctx context.Context, call writeBatchCall) error {
 // retried. Earlier batches may have completed when a later batch returns an
 // error.
 func (c *Client) Delete(ctx context.Context, req DeleteRequest) ([]DeleteResult, error) {
-	completionMode, addresses := req.CompletionMode, req.Addresses
+	completionMode, addresses := defaultCompletionMode(req.CompletionMode), req.Addresses
 	if err := c.validateCollection("delete", len(addresses)); err != nil {
 		return nil, err
 	}

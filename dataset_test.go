@@ -92,7 +92,7 @@ func TestNewDatasetValidatesAndCopiesOptions(t *testing.T) {
 		t.Fatal("Dataset.Read() accepted a nil dataset")
 	}
 	upsertRequest2 := sink.DatasetWriteRequest{
-		CompletionMode: 0,
+		CompletionMode: -1,
 		Records:        []sink.Record{record},
 	}
 	_, err = dataset.Upsert(t.Context(), upsertRequest2)

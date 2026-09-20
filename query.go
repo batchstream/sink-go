@@ -50,6 +50,12 @@ func (c *Client) Query(ctx context.Context, req QueryRequest) (QueryResponse, er
 	if c == nil || c.rpc == nil {
 		return empty, errors.New("query requires a client")
 	}
+	if req.Page == 0 {
+		req.Page = 1
+	}
+	if req.PageSize == 0 {
+		req.PageSize = defaultPageSize
+	}
 	if req.Page < 0 || uint64(req.Page) > uint64(^uint32(0)) || req.PageSize < 0 || req.PageSize > 1000 {
 		return empty, errors.New("query requires a nonnegative uint32 page and page size between 0 and 1000")
 	}
@@ -78,9 +84,6 @@ func (c *Client) Query(ctx context.Context, req QueryRequest) (QueryResponse, er
 		return empty, fmt.Errorf("query native page: %w", err)
 	}
 	pageSize := req.PageSize
-	if pageSize == 0 {
-		pageSize = 100
-	}
 	result := QueryResponse{}
 	complete, hasMore, count := false, false, 0
 	for {

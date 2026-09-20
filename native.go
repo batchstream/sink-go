@@ -179,7 +179,7 @@ func (c *Client) Execute(ctx context.Context, req ExecuteRequest) (ExecuteRespon
 
 type ScanRequest struct {
 	Command    Command
-	BatchSize  int
+	BatchSize  int // Zero selects 100; maximum 1000.
 	Cursor     []byte
 	Projection *Projection // Nil preserves the native projection.
 	// OnDocument consumes each document without collecting it in the response.
@@ -207,6 +207,9 @@ func (c *Client) Scan(ctx context.Context, req ScanRequest) (ScanResponse, error
 	if c == nil || c.rpc == nil {
 		return empty, errors.New("scan requires a client")
 	}
+	if req.BatchSize == 0 {
+		req.BatchSize = defaultPageSize
+	}
 	if req.BatchSize < 0 || req.BatchSize > 1000 {
 		return empty, errors.New("scan batch size must be between 0 and 1000")
 	}
@@ -228,9 +231,6 @@ func (c *Client) Scan(ctx context.Context, req ScanRequest) (ScanResponse, error
 		defer cancel()
 	}
 	limit := req.BatchSize
-	if limit == 0 {
-		limit = 100
-	}
 	result := ScanResponse{}
 	backoff := c.config.scanRetry.InitialBackoff
 	for attempt := 1; attempt <= c.config.scanRetry.MaxAttempts; attempt++ {

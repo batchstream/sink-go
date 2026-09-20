@@ -10,6 +10,7 @@ type ReadRequest struct {
 
 // WriteRequest submits mixed put and merge operations with one completion mode.
 type WriteRequest struct {
+	// CompletionMode defaults to CompletionWaitUntilApplied when zero.
 	CompletionMode CompletionMode
 	Operations     []WriteOperation
 	// OnResult consumes each acknowledgement without collecting a result slice.
@@ -20,6 +21,7 @@ type WriteRequest struct {
 
 // DeleteRequest permanently deletes records with one completion mode.
 type DeleteRequest struct {
+	// CompletionMode defaults to CompletionWaitUntilApplied when zero.
 	CompletionMode CompletionMode
 	Addresses      []Address
 }
@@ -34,6 +36,7 @@ type DatasetReadRequest struct {
 // DatasetWriteRequest supplies records for Create, Replace, Upsert or Merge.
 // Routing, encoding and merge programs come from the Dataset.
 type DatasetWriteRequest struct {
+	// CompletionMode defaults to CompletionWaitUntilApplied when zero.
 	CompletionMode CompletionMode
 	Records        []Record
 	// OnResult has the same delivery and collection semantics as WriteRequest.OnResult.
