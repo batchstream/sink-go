@@ -40,8 +40,7 @@ empty/dot segments, invalid UTF-8 and noncanonical typed keys are rejected.
 Store names are lowercase ASCII letters/digits with `.`, `_` and `-` after the
 first character. The entire URI is at most 16 KiB.
 
-Deploy this SDK with the matching URI-protocol Sink build in a new cluster.
-There is no old address constructor or mixed-version wire compatibility field.
+Use this SDK with a Sink build that implements the same protocol.
 Native `Command` fields remain backend-specific and do not use record affinity.
 
 ## Quick start
@@ -116,7 +115,7 @@ func main() {
 }
 ```
 
-`Dataset` binds the stable store, namespace, dataset, and document encoding once.
+`Dataset` binds a resource URI, document encoding, and optional merge program.
 `Read` accepts one or many keys without reconstructing addresses. Mutations
 wait until applied by default; `WithCompletionMode` changes durability or
 visibility for an individual call. Pass records to `NewDatasetWriteRequest` or
@@ -236,8 +235,7 @@ modes, negative pagination values and oversized pages still fail validation.
 
 ## Streaming callbacks
 
-Read, Write, Query and Scan use server-streaming RPCs. The previous unary wire
-contract has been removed; upgrade server and SDK together. Each method accepts
+Read, Write, Query and Scan use server-streaming RPCs. Each method accepts
 `ctx` and a typed request. Record requests use `Addresses`, `Operations`, `Keys`
 or `Records` slices; completion mode and callbacks belong to the same request.
 Future options can be added as fields without changing method signatures.
@@ -376,16 +374,14 @@ response, err := client.Execute(ctx, request)
 // response.Payload, StatusCode, and Headers remain available on NativeError.
 ```
 
-MongoDB Execute on revision-protected Sink servers supports `insert`, `update`,
+MongoDB Execute supports `insert`, `update`,
 `delete`, and `findAndModify`, plus an explicit set of read/diagnostic and index
 commands. Inserted/replacement documents, operator updates, and update pipelines
 atomically receive fresh Sink revisions, so concurrent record Merges detect the
 change and recompute. The server rejects metadata tampering, unsafe commands such
 as `drop`/`renameCollection`, and unknown commands before execution; it does not
 fall back to unrestricted passthrough. All writers to a collection must use the
-same revision protocol and metadata field. This requires server-side support:
-older unrestricted servers do not advance revisions for native writes, and a
-client upgrade alone does not protect mixed native/record mutations.
+same revision protocol and metadata field.
 
 Search Execute validates supported routes before forwarding native payloads.
 Document writes, `_bulk`, queries, mapping updates and routine refresh/flush
@@ -394,8 +390,7 @@ settings/templates, lifecycle policies and unknown administrative/plugin write
 routes return `INVALID_ARGUMENT` before reaching the backend. GET/HEAD/OPTIONS
 can still inspect native endpoints. See the server's
 [native access contract](https://github.com/batchstream/sink/blob/main/docs/native-access.md#elasticsearch-and-opensearch-endpoints)
-for supported routes. This protection requires an updated server; upgrading
-this SDK alone does not restrict older servers. External administration and
+for supported routes. External administration and
 existing lifecycle policies must be coordinated with record clients, which must
 discard old revisions and snapshots after an index change.
 Native mutations do not run Lua merges or
@@ -532,7 +527,7 @@ accepts ordered `bson.D` arguments and encodes the command once. Native BSON typ
 and ordered fields are preserved. For search Stores, supply an index-relative Path
 such as `/_search`, `/_mapping` or `/_doc/id`; empty Execute Path selects the index
 itself for inspection with GET/HEAD. Explicit index creation/deletion is rejected
-by updated servers. Query/Count/Scan default to `POST /<index>/_search`. For nonempty
+by Sink. Query/Count/Scan default to `POST /<index>/_search`. For nonempty
 payloads, ContentType defaults to the Dataset document encoding; explicit
 ContentType takes precedence, including NDJSON for bulk bodies. Use Client for
 database, cluster and multi-index endpoints. Dataset binding is a convenience;
@@ -578,8 +573,6 @@ for {
 Nil preserves native projection; a non-nil empty projection selects all fields.
 Projection is executed by the backend, reducing document transfer and payload
 memory. Search paths are relative to `_source`, and hit metadata is preserved.
-This field requires a server with Scan projection support; upgrade the server
-before clients that rely on it. Older servers ignore the new protobuf field.
 
 MongoDB Scan supports find queries in `_id` ascending order by default, or an
 explicit `_id` descending sort, with simple collation. Projections can exclude
@@ -607,7 +600,7 @@ Scan reads live data: inserts before the checkpoint may be missed, later inserts
 may appear, and updates/deletes can change results. Retries from the same cursor
 can observe newer data. Execute never retries automatically. Scan retries only
 temporary admission rejections explicitly marked by Sink, using the identical
-command and cursor. Unmarked `ResourceExhausted` (including older servers),
+command and cursor. Unmarked `ResourceExhausted`,
 backend errors, transport failures and invalid pages are not retried. A failed
 Scan can return partial documents but no next cursor; reuse the last saved
 cursor and process idempotently.
@@ -696,18 +689,13 @@ then gracefully drain the server. Abrupt termination can fail in-flight calls;
 load balancing does not make mutating RPCs safe to replay.
 
 The SDK interval applies to Gateway discovery; Gateway has a separate
-`gateway.dns_refresh_interval` for Engine discovery. Size each rollout's serving
+`forwarding.dns_refresh_interval` for Engine discovery. Size each rollout's serving
 overlap for endpoint publication, upstream DNS caches, refresh and lookup delays,
 plus accepted requests that still retain an old Engine address snapshot.
 Kubernetes `preStop` is part of the total termination grace period, whereas
 Sink's `shutdown_timeout` bounds gRPC draining after SIGTERM. A refresh interval
 shorter than `preStop` is not sufficient by itself. See the server's
 [rollout timing and qualification guide](https://github.com/batchstream/sink/blob/main/docs/rolling-upgrades.md).
-
-The URI-only SDK release line starting with v0.8.0 pairs with Sink v0.15.0 or
-later compatible releases. Upgrade the three server roles and clients together
-using the [configuration migration guide](https://github.com/batchstream/sink/blob/main/docs/configuration-migration.md);
-v0.7.x and the earlier multi-Store protocol are not wire-compatible with this line.
 
 Reads retry transport-level `Unavailable` failures and retryable per-operation
 failures with bounded exponential backoff and jitter. Only failed operations are
@@ -742,15 +730,15 @@ use.
 
 ## Compatibility and development
 
-Native access and returned documents require the matching Sink server update.
-Upgrade the server before using these options. Older servers report Unimplemented
-for native RPCs; a missing requested write document is a ProtocolError after the
-write may already have been applied, so it must not trigger an automatic retry.
+Use matching SDK and server protocols. A missing requested write document is a
+`ProtocolError` after the write may already have been applied, so it must not
+trigger an automatic retry.
 
 The generated protocol matches the current Sink server contract. CI
 runs descriptor contract tests, race-enabled unit tests against an in-memory
 gRPC server, malformed-response tests, static analysis, and an end-to-end
-compatibility test against the current Sink main branch with MongoDB and Kafka.
+integration test against the matching Sink branch when available, or main, with
+MongoDB and Kafka.
 The compatibility workflow also runs weekly so server-side drift is detected
 without requiring a client commit.
 

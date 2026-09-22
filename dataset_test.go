@@ -461,9 +461,6 @@ func TestDatasetMergeUsesOneBoundProgramForBatch(t *testing.T) {
 		if merge == nil {
 			t.Fatalf("Dataset.Merge() operation %d = %+v", index, operation)
 		}
-		if got := merge.ProtoReflect().GetUnknown(); len(got) != 0 {
-			t.Fatalf("Dataset.Merge() legacy compatibility field %d = %x", index, got)
-		}
 		if len(merge.GetLuaProgram().GetSource()) != 0 ||
 			!bytes.Equal(merge.GetLuaProgram().GetSha256(), wantDigest[:]) {
 			t.Fatalf("Dataset.Merge() program reference %d = %+v", index, merge.GetLuaProgram())

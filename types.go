@@ -334,8 +334,9 @@ type WriteOperation struct {
 }
 
 // WithReturnedDocument requests the logical document used by this operation's
-// successful commit. It requires synchronous completion and disables folding
-// with other operations on this record. Backend-generated fields are excluded.
+// successful commit. It requires synchronous completion and an independent
+// commit for this operation; surrounding operations may still fold.
+// Backend-generated fields are excluded.
 func (o WriteOperation) WithReturnedDocument() WriteOperation {
 	o.returnDocument = true
 	return o
