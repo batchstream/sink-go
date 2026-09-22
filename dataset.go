@@ -31,11 +31,10 @@ type Record struct {
 // Record methods return decoded results and a BatchError when any individual
 // operation fails; native methods retain the corresponding Client semantics.
 type Dataset struct {
-	client          *Client
-	uri             string
-	encoding        DocumentEncoding
-	mergeProgram    LuaProgram
-	hasMergeProgram bool
+	client       *Client
+	uri          string
+	encoding     DocumentEncoding
+	mergeProgram *LuaProgram
 }
 
 // NewDataset binds stable dataset settings to a Client. MergeProgram is
@@ -59,12 +58,9 @@ func NewDataset(client *Client, opts DatasetOptions) (*Dataset, error) {
 		if err := opts.MergeProgram.validate(); err != nil {
 			return nil, fmt.Errorf("create dataset: %w", err)
 		}
-		program, err := NewLuaProgram(opts.MergeProgram.Source())
-		if err != nil {
-			return nil, fmt.Errorf("create dataset: copy merge program: %w", err)
-		}
-		dataset.mergeProgram = program
-		dataset.hasMergeProgram = true
+		// Snapshot the value; LuaProgram owns immutable buffers.
+		program := *opts.MergeProgram
+		dataset.mergeProgram = &program
 	}
 	return dataset, nil
 }
@@ -99,15 +95,9 @@ func (d *Dataset) Read(ctx context.Context, req DatasetReadRequest) ([]ReadResul
 	}
 	request := ReadRequest{Addresses: addresses, OnResult: onResult}
 	results, err := d.client.Read(ctx, request)
-	resultsErr := errors.Join(ReadResultsError(results), newBatchError(failures))
+	err = errors.Join(err, ReadResultsError(results), newBatchError(failures))
 	if err != nil {
-		if resultsErr != nil {
-			err = errors.Join(err, resultsErr)
-		}
 		return results, fmt.Errorf("dataset read: %w", err)
-	}
-	if resultsErr != nil {
-		return results, fmt.Errorf("dataset read: %w", resultsErr)
 	}
 	return results, nil
 }
@@ -149,7 +139,7 @@ func (d *Dataset) Merge(ctx context.Context, req DatasetWriteRequest) ([]WriteRe
 	if err := d.validate("merge"); err != nil {
 		return nil, err
 	}
-	if !d.hasMergeProgram {
+	if d.mergeProgram == nil {
 		return nil, errors.New("dataset merge: merge program is not configured")
 	}
 	operations := make([]WriteOperation, len(req.Records))
@@ -160,7 +150,7 @@ func (d *Dataset) Merge(ctx context.Context, req DatasetWriteRequest) ([]WriteRe
 		}
 		mergeOptions := MergeOptions{
 			Incoming: document,
-			Program:  d.mergeProgram,
+			Program:  *d.mergeProgram,
 		}
 		operation, err := NewMerge(address, mergeOptions)
 		if err != nil {
@@ -235,15 +225,9 @@ func (d *Dataset) write(ctx context.Context, operation string, req WriteRequest)
 	}
 	req.OnResult = onResult
 	results, err := d.client.Write(ctx, req)
-	resultsErr := errors.Join(WriteResultsError(results), newBatchError(failures))
+	err = errors.Join(err, WriteResultsError(results), newBatchError(failures))
 	if err != nil {
-		if resultsErr != nil {
-			err = errors.Join(err, resultsErr)
-		}
 		return results, fmt.Errorf("dataset %s: %w", operation, err)
-	}
-	if resultsErr != nil {
-		return results, fmt.Errorf("dataset %s: %w", operation, resultsErr)
 	}
 	return results, nil
 }
