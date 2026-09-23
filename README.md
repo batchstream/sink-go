@@ -32,7 +32,7 @@ canonical URI for Engine affinity. All Gateways with the same Engine membership
 select the same Engine for a record. Membership changes may temporarily split
 traffic. No exclusive ownership or cross-replica ordering is promised.
 
-The shared `github.com/batchstream/sink-go/uri` package builds, parses and validates
+The shared `github.com/batchstream/sink-protocol/uri` package builds, parses and validates
 URIs. String keys use `s:`, int64 keys `i:`, bytes keys `b:` plus unpadded base64url,
 and opaque keys `o:<base64url type>:<base64url data>`. The builder escapes each
 path segment; encoded slashes are part of a segment. Alternate URI spellings,
@@ -299,7 +299,7 @@ The default collector returns received documents/results along with any error.
   search hits, with an opaque `NextCursor` for resuming on any server.
 - String, int64, byte, and opaque keys are supported.
 - `CheckHealth` uses the standard gRPC health service.
-- `Raw` exposes the generated `api/sink/v1` client for advanced use.
+- `Raw` exposes the generated `github.com/batchstream/sink-protocol/sink/v1` client for advanced use.
 
 Use `CompletionWaitUntilApplied` for storage acknowledgement,
 `CompletionWaitUntilVisible` when a following search read must observe the
@@ -734,19 +734,18 @@ Use matching SDK and server protocols. A missing requested write document is a
 `ProtocolError` after the write may already have been applied, so it must not
 trigger an automatic retry.
 
-The generated protocol matches the current Sink server contract. CI
-runs descriptor contract tests, race-enabled unit tests against an in-memory
+The SDK uses the generated public API from `sink-protocol`, the same versioned
+contract consumed by the Sink server. CI runs race-enabled unit tests against an in-memory
 gRPC server, malformed-response tests, static analysis, and an end-to-end
 integration test against the matching Sink branch when available, or main, with
 MongoDB and Kafka.
-The compatibility workflow also runs weekly so server-side drift is detected
+The compatibility workflow also runs weekly to detect server-side behavior drift
 without requiring a client commit.
 
 ```shell
 make test
 make test-race
 make lint
-make proto-check
 ```
 
 To run the external compatibility test against an already running server:

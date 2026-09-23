@@ -50,7 +50,10 @@ jobs:
       - name: Fuzz canonical URI boundaries
         run: |
           mkdir -p .reports/fuzz
-          go test ./uri -run='^$' -fuzz='^FuzzCanonicalURI$' -fuzztime=30s -parallel=2 2>&1 | tee .reports/fuzz/uri.log
+          protocol_dir="$(go list -m -f '{{.Dir}}' github.com/batchstream/sink-protocol)"
+          fuzz_dir="$(mktemp -d)"
+          cp -R "${protocol_dir}/uri/." "${fuzz_dir}/"
+          (cd "${fuzz_dir}" && GO111MODULE=off go test -run='^$' -fuzz='^FuzzCanonicalURI$' -fuzztime=30s -parallel=2 .) 2>&1 | tee .reports/fuzz/uri.log
           grep -q 'new interesting:' .reports/fuzz/uri.log
 
       - name: Preserve fuzz evidence
@@ -60,7 +63,6 @@ jobs:
           name: uri-fuzzing
           path: |
             .reports/fuzz/
-            uri/testdata/fuzz/
           include-hidden-files: true
           retention-days: 14
 
@@ -101,11 +103,6 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-
-      - name: Verify matching protobuf contract
-        run: |
-          sed 's#github.com/batchstream/sink/gen/sink;sink#github.com/batchstream/sink-go/api/sink/v1;sinkv1#' \
-            sink-server/proto/sink/sink.proto | diff -u - proto/sink/sink.proto
 
       - name: Start Sink with MongoDB and Kafka
         run: docker compose --file sink-server/examples/quickstart/compose.yaml up --detach --build engine worker gateway

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	sink "github.com/batchstream/sink-go"
-	sinkv1 "github.com/batchstream/sink-go/api/sink/v1"
+	sinkv1 "github.com/batchstream/sink-protocol/sink/v1"
 )
 
 type scanDeadlineServer struct {
