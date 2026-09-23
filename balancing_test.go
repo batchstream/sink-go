@@ -10,7 +10,7 @@ import (
 	"github.com/batchstream/sink-go/internal/testuri"
 
 	sink "github.com/batchstream/sink-go"
-	sinkv1 "github.com/batchstream/sink-go/api/sink/v1"
+	sinkv1 "github.com/batchstream/sink-protocol/sink/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/resolver"

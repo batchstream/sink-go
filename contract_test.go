@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	sinkv1 "github.com/batchstream/sink-go/api/sink/v1"
+	sinkv1 "github.com/batchstream/sink-protocol/sink/v1"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 

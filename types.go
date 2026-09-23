@@ -8,9 +8,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/batchstream/sink-go/uri"
+	"github.com/batchstream/sink-protocol/uri"
 
-	sinkv1 "github.com/batchstream/sink-go/api/sink/v1"
+	sinkv1 "github.com/batchstream/sink-protocol/sink/v1"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
