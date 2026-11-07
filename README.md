@@ -1,5 +1,13 @@
 # sink-go
 
+> [!IMPORTANT]
+> **Archived.** Sink has been replaced by [Weir](https://github.com/batchstream/weir),
+> and `sink-go` by its Go SDK, [`weir-go`](https://github.com/batchstream/weir-go).
+> Module versions up to v0.10.2 remain available but receive no fixes. `weir-go`
+> has a different API and no durable asynchronous completion, so calls change
+> when they move, and callers that used asynchronous completion write
+> synchronously.
+
 `sink-go` is the typed, concurrency-safe Go client for the
 [`batchstream/sink`](https://github.com/batchstream/sink) gRPC service. It covers the full
 batch API: reads, puts, self-contained Lua merges, and hard deletes with synchronous
